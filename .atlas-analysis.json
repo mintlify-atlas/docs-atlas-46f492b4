@@ -1,0 +1,125 @@
+{
+  "projectType": "api-service",
+  "projectName": "Soft-Bee API",
+  "projectDescription": "REST API for beekeeping management system with authentication, hive monitoring, production tracking, and inventory management",
+  "theme": "mint",
+  "primaryColor": "#F9A825",
+  "lightColor": "#FFD54F",
+  "darkColor": "#F57F17",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation"
+            ]
+          },
+          {
+            "group": "Architecture",
+            "pages": [
+              "architecture/overview",
+              "architecture/clean-architecture",
+              "architecture/project-structure",
+              "architecture/dependency-injection"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/environment",
+              "configuration/database",
+              "configuration/jwt"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Authentication",
+            "pages": [
+              "api/auth/overview",
+              "api/auth/register",
+              "api/auth/login",
+              "api/auth/refresh-token",
+              "api/auth/logout"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "api/error-handling",
+              "api/rate-limiting",
+              "api/authentication"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Development",
+        "groups": [
+          {
+            "group": "Guides",
+            "pages": [
+              "development/setup",
+              "development/creating-features",
+              "development/testing",
+              "development/migrations"
+            ]
+          },
+          {
+            "group": "Domain Layer",
+            "pages": [
+              "development/domain/entities",
+              "development/domain/value-objects",
+              "development/domain/events",
+              "development/domain/exceptions"
+            ]
+          },
+          {
+            "group": "Application Layer",
+            "pages": [
+              "development/application/use-cases",
+              "development/application/dtos",
+              "development/application/interfaces"
+            ]
+          },
+          {
+            "group": "Infrastructure Layer",
+            "pages": [
+              "development/infrastructure/repositories",
+              "development/infrastructure/models",
+              "development/infrastructure/services"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Clean Architecture with DDD principles",
+    "JWT-based authentication and authorization",
+    "Feature-based modular structure",
+    "PostgreSQL database with SQLAlchemy ORM",
+    "Dependency injection with dependency-injector",
+    "User registration and login",
+    "Token refresh and management",
+    "Password hashing with bcrypt",
+    "Email validation with value objects",
+    "Domain events and event-driven architecture"
+  ],
+  "publicApiSurface": [
+    "POST /api/v1/auth/register - Register new user",
+    "POST /api/v1/auth/login - Authenticate user",
+    "POST /api/v1/auth/refresh - Refresh access token",
+    "POST /api/v1/auth/logout - Logout user",
+    "POST /api/v1/auth/verify - Verify token",
+    "GET /api/v1/auth/health - Health check"
+  ]
+}
