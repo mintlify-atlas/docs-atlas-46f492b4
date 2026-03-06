@@ -1,0 +1,488 @@
+---
+title: Creating Features
+description: Learn how to create new features following Clean Architecture and DDD principles
+---
+
+The Soft-Bee API uses a feature-based architecture where each feature is a self-contained module following Clean Architecture and Domain-Driven Design (DDD) principles.
+
+## Feature Structure
+
+Each feature follows a layered architecture:
+
+```
+feature_name/
+├── domain/                      # Domain Layer (Business Logic)
+│   ├── entities/                # Domain entities
+│   ├── value_objects/           # Value objects
+│   ├── services/                # Domain services
+│   ├── exceptions/              # Domain exceptions
+│   └── events/                  # Domain events
+├── application/                 # Application Layer (Use Cases)
+│   ├── use_cases/               # Application use cases
+│   ├── interfaces/              # Repository & service interfaces
+│   │   ├── repositories/
+│   │   └── services/
+│   ├── dto/                     # Data Transfer Objects
+│   └── mappers/                 # Entity/DTO mappers
+├── infrastructure/              # Infrastructure Layer (External)
+│   ├── repositories/            # Repository implementations
+│   ├── services/                # Service implementations
+│   │   └── security/
+│   └── models/                  # Database models
+└── presentation/                # Presentation Layer (API)
+    └── api/
+        └── v1/
+            ├── endpoints/       # API routes
+            ├── schemas/         # Request/response schemas
+            └── dependencies/    # Dependency injection
+```
+
+## Creating a New Feature
+
+The project includes an automated script to generate the feature structure.
+
+<Steps>
+  <Step title="Run the Feature Creation Script">
+    Execute the `create_feature.sh` script with your feature name:
+    
+    ```bash
+    ./create_feature.sh <feature_name>
+    ```
+    
+    Example:
+    
+    ```bash
+    ./create_feature.sh apiary
+    ```
+    
+    This will create the complete directory structure and all necessary `__init__.py` files.
+  </Step>
+
+  <Step title="Define Domain Entities">
+    Start by creating your domain entities in `domain/entities/`. Entities represent core business objects.
+    
+    **Example:** `src/features/auth/domain/entities/user.py:9-99`
+    
+    ```python
+    from dataclasses import dataclass, field
+    from datetime import datetime
+    from typing import Optional, List
+    from ...domain.value_objects.email import Email
+    from ...domain.events.auth_events import UserRegisteredEvent
+    
+    @dataclass
+    class User:
+        """Entidad User para autenticación"""
+        
+        email: Email
+        username: str
+        hashed_password: str
+        id: Optional[str] = None
+        is_active: bool = True
+        is_verified: bool = False
+        last_login: Optional[datetime] = None
+        created_at: datetime = field(default_factory=datetime.utcnow)
+        updated_at: datetime = field(default_factory=datetime.utcnow)
+        
+        # Domain events
+        _events: List = field(default_factory=list, init=False, repr=False)
+        
+        def __post_init__(self):
+            self.validate()
+        
+        def validate(self):
+            """Validar reglas de negocio"""
+            if len(self.username) < 3:
+                raise InvalidUserException("Username must be at least 3 characters")
+            
+            if not self.email.is_valid():
+                raise InvalidUserException("Invalid email address")
+        
+        def login_successful(self):
+            """Manejar login exitoso"""
+            self.last_login = datetime.utcnow()
+            self.failed_login_attempts = 0
+            self.updated_at = datetime.utcnow()
+            
+            # Registrar evento
+            self._register_event(UserLoggedInEvent(
+                user_id=self.id,
+                email=str(self.email),
+                timestamp=datetime.utcnow()
+            ))
+    ```
+    
+    **Key Points:**
+    - Use `@dataclass` for clean entity definition
+    - Include validation in `__post_init__` or `validate()`
+    - Implement business logic as methods
+    - Use domain events for side effects
+  </Step>
+
+  <Step title="Create Value Objects">
+    Define value objects in `domain/value_objects/`. Value objects are immutable and defined by their attributes.
+    
+    **Example:** Email value object
+    
+    ```python
+    from dataclasses import dataclass
+    import re
+    
+    @dataclass(frozen=True)
+    class Email:
+        """Value Object para email"""
+        value: str
+        
+        def __post_init__(self):
+            if not self.is_valid():
+                raise ValueError(f"Invalid email: {self.value}")
+        
+        def is_valid(self) -> bool:
+            pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+            return bool(re.match(pattern, self.value))
+        
+        def __str__(self):
+            return self.value
+    ```
+  </Step>
+
+  <Step title="Define Repository Interfaces">
+    Create repository interfaces in `application/interfaces/repositories/`.
+    
+    **Example:** User repository interface
+    
+    ```python
+    from abc import ABC, abstractmethod
+    from typing import Optional
+    from ...domain.entities.user import User
+    
+    class IUserRepository(ABC):
+        """Interface for User repository"""
+        
+        @abstractmethod
+        def save(self, user: User) -> User:
+            """Save a user"""
+            pass
+        
+        @abstractmethod
+        def find_by_id(self, user_id: str) -> Optional[User]:
+            """Find user by ID"""
+            pass
+        
+        @abstractmethod
+        def find_by_email(self, email: str) -> Optional[User]:
+            """Find user by email"""
+            pass
+        
+        @abstractmethod
+        def exists_by_email(self, email: str) -> bool:
+            """Check if email exists"""
+            pass
+    ```
+  </Step>
+
+  <Step title="Create DTOs">
+    Define Data Transfer Objects in `application/dto/` for request/response data.
+    
+    **Example:** Authentication DTOs
+    
+    ```python
+    from dataclasses import dataclass
+    from datetime import datetime
+    from typing import Optional
+    
+    @dataclass
+    class RegisterRequestDTO:
+        """DTO for user registration request"""
+        email: str
+        username: str
+        password: str
+    
+    @dataclass
+    class RegisterResponseDTO:
+        """DTO for user registration response"""
+        id: str
+        email: str
+        username: str
+        is_verified: bool
+        created_at: datetime
+        message: str = "User registered successfully"
+    ```
+  </Step>
+
+  <Step title="Implement Use Cases">
+    Create use cases in `application/use_cases/`. Use cases orchestrate business logic.
+    
+    **Example:** `src/features/auth/application/use_cases/register_user.py:9-69`
+    
+    ```python
+    from typing import Tuple, Optional
+    from ...domain.entities.user import User
+    from ...domain.value_objects.email import Email
+    from ...application.dto.auth_dto import RegisterRequestDTO, RegisterResponseDTO
+    from ...application.interfaces.repositories.user_repository import IUserRepository
+    from ...domain.exceptions.auth_exceptions import EmailAlreadyExistsException
+    
+    class RegisterUserUseCase:
+        """Caso de uso: Registrar usuario"""
+        
+        def __init__(
+            self,
+            user_repository: IUserRepository,
+            password_hasher: Any,
+            event_publisher: Optional[Any] = None
+        ):
+            self.user_repository = user_repository
+            self.password_hasher = password_hasher
+            self.event_publisher = event_publisher
+        
+        def execute(self, request: RegisterRequestDTO) -> Tuple[Optional[RegisterResponseDTO], Optional[str]]:
+            """Execute user registration"""
+            try:
+                # 1. Check if email exists
+                if self.user_repository.exists_by_email(request.email):
+                    raise EmailAlreadyExistsException()
+                
+                # 2. Check if username exists
+                if self.user_repository.exists_by_username(request.username):
+                    return None, "Username already exists"
+                
+                # 3. Hash password
+                hashed_password = self.password_hasher.hash(request.password)
+                
+                # 4. Create domain entity
+                user = User(
+                    email=Email(request.email),
+                    username=request.username,
+                    hashed_password=hashed_password
+                )
+                
+                # 5. Save user
+                saved_user = self.user_repository.save(user)
+                
+                # 6. Publish domain events
+                if self.event_publisher:
+                    events = saved_user.pull_events()
+                    for event in events:
+                        self.event_publisher.publish(event)
+                
+                # 7. Create response
+                response = RegisterResponseDTO(
+                    id=saved_user.id,
+                    email=str(saved_user.email),
+                    username=saved_user.username,
+                    is_verified=saved_user.is_verified,
+                    created_at=saved_user.created_at
+                )
+                
+                return response, None
+                
+            except Exception as e:
+                return None, str(e)
+    ```
+  </Step>
+
+  <Step title="Implement Repository">
+    Create the repository implementation in `infrastructure/repositories/`.
+    
+    **Example:** SQLAlchemy user repository
+    
+    ```python
+    from typing import Optional
+    from ...domain.entities.user import User
+    from ...application.interfaces.repositories.user_repository import IUserRepository
+    from ..models.user_model import UserModel
+    from sqlalchemy.orm import Session
+    
+    class UserRepository(IUserRepository):
+        """SQLAlchemy implementation of User repository"""
+        
+        def __init__(self, session: Session):
+            self.session = session
+        
+        def save(self, user: User) -> User:
+            """Save user to database"""
+            model = UserModel.from_entity(user)
+            self.session.add(model)
+            self.session.commit()
+            return model.to_entity()
+        
+        def find_by_email(self, email: str) -> Optional[User]:
+            """Find user by email"""
+            model = self.session.query(UserModel).filter_by(email=email).first()
+            return model.to_entity() if model else None
+        
+        def exists_by_email(self, email: str) -> bool:
+            """Check if email exists"""
+            return self.session.query(UserModel).filter_by(email=email).count() > 0
+    ```
+  </Step>
+
+  <Step title="Create API Endpoints">
+    Define Flask routes in `presentation/api/v1/endpoints/`.
+    
+    **Example:** `src/features/auth/presentation/api/v1/endpoints/auth.py:47-73`
+    
+    ```python
+    from flask import Blueprint, request, jsonify
+    from dependency_injector.wiring import inject, Provide
+    from .....application.dto.auth_dto import RegisterRequestDTO
+    from .....application.use_cases.register_user import RegisterUserUseCase
+    from src.core.dependencies.containers import MainContainer as Container
+    from ..schemas.auth_schemas import RegisterSchema
+    
+    auth_bp = Blueprint('auth_v1', __name__, url_prefix='/api/v1/auth')
+    
+    @auth_bp.route('/register', methods=['POST'])
+    @inject
+    def register(
+        register_use_case: RegisterUserUseCase = Provide[Container.auth.register_use_case]
+    ):
+        """User registration endpoint"""
+        schema = RegisterSchema()
+        try:
+            data = schema.load(request.json)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+        
+        register_request = RegisterRequestDTO(**data)
+        result, error = register_use_case.execute(register_request)
+        
+        if error:
+            return jsonify({"error": error}), 400
+        
+        return jsonify({
+            "id": result.id,
+            "email": result.email,
+            "username": result.username,
+            "is_verified": result.is_verified,
+            "created_at": result.created_at.isoformat(),
+            "message": result.message
+        }), 201
+    ```
+  </Step>
+
+  <Step title="Register Feature Blueprint">
+    The blueprint is automatically created by `create_feature.sh` at:
+    
+    `src/features/<feature_name>/presentation/api/v1/endpoints/__init__.py`
+    
+    ```python
+    from flask import Blueprint
+    
+    feature_name_bp = Blueprint(
+        'feature_name',
+        __name__,
+        url_prefix='/api/v1/feature_name'
+    )
+    
+    # Import routes
+    from . import routes
+    
+    __all__ = ['feature_name_bp']
+    ```
+    
+    Then register it in `src/api/router.py` to enable the feature.
+  </Step>
+</Steps>
+
+## Layer Dependencies
+
+Follow these dependency rules strictly:
+
+```
+Presentation → Application → Domain ← Infrastructure
+```
+
+- **Domain:** No dependencies on other layers
+- **Application:** Depends only on Domain
+- **Infrastructure:** Depends on Domain and Application (interfaces)
+- **Presentation:** Depends on Application (use cases) and Domain (entities)
+
+<Warning>
+Never import infrastructure or presentation code into the domain layer. The domain must remain pure business logic.
+</Warning>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use Dependency Injection">
+    Use `dependency-injector` to inject dependencies into use cases:
+    
+    ```python
+    from dependency_injector.wiring import inject, Provide
+    
+    @inject
+    def endpoint(
+        use_case: UseCase = Provide[Container.feature.use_case]
+    ):
+        pass
+    ```
+  </Accordion>
+
+  <Accordion title="Keep Entities Pure">
+    Domain entities should only contain business logic:
+    
+    - No database code
+    - No HTTP code
+    - No framework dependencies
+    - Only business rules and validations
+  </Accordion>
+
+  <Accordion title="Return Tuples from Use Cases">
+    Use cases should return `(result, error)` tuples:
+    
+    ```python
+    def execute(self, request: DTO) -> Tuple[Optional[ResponseDTO], Optional[str]]:
+        try:
+            # business logic
+            return response, None
+        except Exception as e:
+            return None, str(e)
+    ```
+  </Accordion>
+
+  <Accordion title="Use DTOs for Data Transfer">
+    Never expose domain entities directly in APIs:
+    
+    ```python
+    # Good
+    response = RegisterResponseDTO(
+        id=user.id,
+        email=str(user.email),
+        username=user.username
+    )
+    
+    # Bad
+    return user  # Don't expose entities
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Testing Your Feature
+
+After creating a feature:
+
+1. **Test domain entities** - Unit test business logic
+2. **Test use cases** - Test with mocked repositories
+3. **Test repositories** - Integration tests with database
+4. **Test endpoints** - API integration tests
+
+See the [Testing Guide](/development/testing) for detailed examples.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Testing" icon="flask" href="/development/testing">
+    Learn how to test your features
+  </Card>
+  <Card title="Migrations" icon="database" href="/development/migrations">
+    Create database migrations for your models
+  </Card>
+  <Card title="Domain Layer" icon="cube" href="/development/domain/entities">
+    Deep dive into domain modeling
+  </Card>
+  <Card title="Application Layer" icon="gears" href="/development/application/use-cases">
+    Learn about use cases and application services
+  </Card>
+</CardGroup>

@@ -1,0 +1,301 @@
+---
+title: 'Logout'
+api: 'POST /api/v1/auth/logout'
+description: 'Invalidate refresh token and end user session'
+---
+
+<Warning>
+This endpoint is currently under development and not yet available in production.
+</Warning>
+
+## Endpoint
+
+```
+POST /api/v1/auth/logout
+```
+
+Invalidates the user's refresh token and ends the active session. This prevents the refresh token from being used to obtain new access tokens.
+
+<Info>
+Access tokens cannot be invalidated through this endpoint due to their stateless nature. They will remain valid until expiration.
+</Info>
+
+## Request Body
+
+<ParamField body="refresh_token" type="string">
+  The refresh token to invalidate (optional).
+  
+  If not provided, the system may attempt to identify the token from the request context (e.g., cookies or Authorization header).
+  
+  **Example**: `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...`
+</ParamField>
+
+## Response
+
+On successful logout, the endpoint returns a simple confirmation message.
+
+<ResponseField name="message" type="string">
+  Confirmation message indicating successful logout.
+  
+  **Value**: `"Logged out successfully"`
+</ResponseField>
+
+## Example Request
+
+```bash cURL
+curl -X POST https://api.softbee.com/api/v1/auth/logout \
+  -H "Content-Type: application/json" \
+  -d '{
+    "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1NTBlODQwMC1lMjliLTQxZDQtYTcxNi00NDY2NTU0NDAwMDAiLCJleHAiOjE3MTIyMzk2NDV9.abc..."
+  }'
+```
+
+```python Python
+import requests
+
+url = "https://api.softbee.com/api/v1/auth/logout"
+payload = {
+    "refresh_token": stored_refresh_token  # Retrieved from secure storage
+}
+
+response = requests.post(url, json=payload)
+
+if response.status_code == 200:
+    # Clear local token storage
+    access_token = None
+    refresh_token = None
+    print("Logged out successfully")
+else:
+    print(f"Logout failed: {response.json()}")
+```
+
+```javascript JavaScript
+fetch('https://api.softbee.com/api/v1/auth/logout', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    refresh_token: localStorage.getItem('refresh_token')
+  })
+})
+.then(response => response.json())
+.then(data => {
+  // Clear stored tokens
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('refresh_token');
+  
+  console.log(data.message); // "Logged out successfully"
+  
+  // Redirect to login or home page
+  window.location.href = '/login';
+})
+.catch(error => {
+  console.error('Logout error:', error);
+  // Still clear tokens on error
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('refresh_token');
+});
+```
+
+## Example Response
+
+<ResponseExample>
+```json 200 OK
+{
+  "message": "Logged out successfully"
+}
+```
+</ResponseExample>
+
+## Error Responses
+
+<ResponseExample>
+```json 400 Bad Request - Invalid Token Format
+{
+  "error": "Invalid refresh token format"
+}
+```
+
+```json 400 Bad Request - Token Not Found
+{
+  "error": "Refresh token not found in request"
+}
+```
+
+```json 401 Unauthorized - Invalid Token
+{
+  "error": "Invalid or expired refresh token"
+}
+```
+</ResponseExample>
+
+## Logout Behavior
+
+### What Gets Invalidated
+- **Refresh Token**: Immediately blacklisted and cannot be used again
+- **Server Session**: Any server-side session data is cleared
+
+### What Remains Valid
+- **Access Token**: Continues to work until natural expiration
+  - Short-lived by design (15 minutes - 24 hours)
+  - Cannot be invalidated due to stateless JWT nature
+  - Consider short expiration times for better security
+
+<Warning>
+**Security Note**: Access tokens remain valid until expiration even after logout. For sensitive operations, use short-lived access tokens.
+</Warning>
+
+## Client-Side Cleanup
+
+Always perform client-side cleanup after logout, regardless of API response:
+
+```javascript
+function performLogout() {
+  // Call logout endpoint
+  fetch('/api/v1/auth/logout', {
+    method: 'POST',
+    body: JSON.stringify({
+      refresh_token: getRefreshToken()
+    })
+  })
+  .finally(() => {
+    // Always clear tokens, even if API call fails
+    clearTokens();
+    redirectToLogin();
+  });
+}
+
+function clearTokens() {
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('refresh_token');
+  sessionStorage.clear();
+  // Clear any cookies
+  document.cookie.split(";").forEach(c => {
+    document.cookie = c.replace(/^ +/, "")
+      .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+  });
+}
+```
+
+## Multiple Device Logout
+
+<Info>
+This endpoint only invalidates the specific refresh token provided. To implement "logout from all devices":
+- Server must track all refresh tokens per user
+- Implement a "logout all" endpoint that invalidates all user tokens
+- Or use a token family/version system
+</Info>
+
+## Best Practices
+
+### 1. Always Call Logout
+Even though access tokens remain valid temporarily, always call logout to:
+- Invalidate refresh tokens
+- Clean up server-side sessions
+- Maintain proper audit logs
+- Enable security monitoring
+
+### 2. Handle Network Failures
+```javascript
+function safeLogout() {
+  const logoutPromise = fetch('/api/v1/auth/logout', {
+    method: 'POST',
+    body: JSON.stringify({ refresh_token: getRefreshToken() })
+  });
+  
+  // Set timeout to ensure cleanup happens
+  const timeout = new Promise((resolve) => 
+    setTimeout(resolve, 5000)
+  );
+  
+  Promise.race([logoutPromise, timeout])
+    .finally(() => {
+      clearTokens();
+      redirectToLogin();
+    });
+}
+```
+
+### 3. Implement Logout UI Feedback
+```javascript
+async function logout() {
+  try {
+    setLoading(true);
+    
+    await fetch('/api/v1/auth/logout', {
+      method: 'POST',
+      body: JSON.stringify({ refresh_token: getRefreshToken() })
+    });
+    
+    showNotification('Successfully logged out');
+  } catch (error) {
+    console.error('Logout failed:', error);
+    showNotification('Logged out (with errors)', 'warning');
+  } finally {
+    clearTokens();
+    redirectToLogin();
+    setLoading(false);
+  }
+}
+```
+
+### 4. Automatic Session Timeout
+Implement automatic logout on inactivity:
+
+```javascript
+let inactivityTimer;
+
+function resetInactivityTimer() {
+  clearTimeout(inactivityTimer);
+  // Logout after 30 minutes of inactivity
+  inactivityTimer = setTimeout(logout, 30 * 60 * 1000);
+}
+
+// Reset timer on user activity
+document.addEventListener('mousemove', resetInactivityTimer);
+document.addEventListener('keypress', resetInactivityTimer);
+```
+
+## Implementation Status
+
+<Warning>
+**Current Status**: Under Development
+
+This endpoint is currently commented out in the source code. Expected features when released:
+- Refresh token blacklisting
+- Session cleanup
+- Audit logging
+- Optional "logout all devices" functionality
+- Grace period for token invalidation
+</Warning>
+
+## Related Endpoints
+
+<CardGroup cols={2}>
+  <Card title="Login" icon="right-to-bracket" href="/api/auth/login">
+    Authenticate and start a new session
+  </Card>
+  <Card title="Refresh Token" icon="rotate" href="/api/auth/refresh-token">
+    Refresh access token during active session
+  </Card>
+</CardGroup>
+
+## Security Considerations
+
+### Token Blacklisting
+The system maintains a blacklist of invalidated refresh tokens to prevent reuse. This list is:
+- Checked on every refresh token request
+- Periodically cleaned of expired tokens
+- Replicated across all API servers
+
+### Audit Logging
+Logout events are logged for security monitoring:
+- User ID
+- Logout timestamp
+- IP address
+- User agent
+- Token ID (if applicable)
+
+### Rate Limiting
+Multiple rapid logout attempts may be rate-limited to prevent abuse of the blacklist system.

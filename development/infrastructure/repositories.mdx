@@ -1,0 +1,222 @@
+---
+title: "Repositories"
+description: "Repository pattern implementation for data access in Soft-Bee API"
+---
+
+## Overview
+
+Repositories provide an abstraction layer between the domain and data access layers, implementing the Repository pattern from Domain-Driven Design (DDD). They translate between domain entities and database models.
+
+## Repository Pattern
+
+The repository pattern in Soft-Bee follows these principles:
+
+- **Interface Segregation**: Each repository implements a domain-specific interface
+- **Dependency Inversion**: Use cases depend on repository interfaces, not implementations
+- **Data Mapping**: Repositories handle conversion between domain entities and persistence models
+- **Encapsulation**: Database operations are encapsulated within repository methods
+
+## User Repository Implementation
+
+### Location
+
+`src/features/auth/infrastructure/repositories/user_repository_impl.py:11`
+
+### Structure
+
+```python
+from typing import Optional, List
+from sqlalchemy.orm import Session
+from uuid import UUID
+from ...domain.entities.user import User
+from ...application.interfaces.repositories.user_repository import IUserRepository
+from ..models.user_model import UserModel
+
+class UserRepositoryImpl(IUserRepository):
+    """Implementación del repositorio de usuarios con SQLAlchemy"""
+    
+    def __init__(self, db_session: Session):
+        self.db_session = db_session
+```
+
+### Key Methods
+
+#### Existence Checks
+
+Check if a user exists by email or username without loading the full entity:
+
+```python
+def exists_by_email(self, email: str) -> bool:
+    return self.db_session.query(
+        self.db_session.query(UserModel).filter_by(email=email).exists()
+    ).scalar()
+
+def exists_by_username(self, username: str) -> bool:
+    return self.db_session.query(
+        self.db_session.query(UserModel).filter_by(username=username).exists()
+    ).scalar()
+```
+
+Reference: `user_repository_impl.py:56-64`
+
+#### Token Management
+
+Manage refresh tokens stored as JSON arrays:
+
+```python
+def add_refresh_token(self, user_id: str, token: str) -> None:
+    try:
+        user_uuid = UUID(user_id)
+    except ValueError:
+        return
+    
+    user_model = self.db_session.query(UserModel).filter_by(id=user_uuid).first()
+    if user_model:
+        if not user_model.refresh_tokens:
+            user_model.refresh_tokens = []
+        
+        if token not in user_model.refresh_tokens:
+            user_model.refresh_tokens.append(token)
+            self.db_session.commit()
+```
+
+Reference: `user_repository_impl.py:87-100`
+
+```python
+def remove_refresh_token(self, user_id: str, token: str) -> bool:
+    try:
+        user_uuid = UUID(user_id)
+    except ValueError:
+        return False
+    
+    user_model = self.db_session.query(UserModel).filter_by(id=user_uuid).first()
+    if user_model and user_model.refresh_tokens and token in user_model.refresh_tokens:
+        user_model.refresh_tokens.remove(token)
+        self.db_session.commit()
+        return True
+    
+    return False
+```
+
+Reference: `user_repository_impl.py:102-114`
+
+#### Session Tracking
+
+Update last login timestamp:
+
+```python
+def update_last_login(self, user_id: str) -> None:
+    try:
+        user_uuid = UUID(user_id)
+    except ValueError:
+        return
+    
+    user_model = self.db_session.query(UserModel).filter_by(id=user_uuid).first()
+    if user_model:
+        user_model.last_login = datetime.utcnow()
+        self.db_session.commit()
+```
+
+Reference: `user_repository_impl.py:76-85`
+
+#### Delete Operations
+
+```python
+def delete(self, user_id: str) -> bool:
+    try:
+        user_uuid = UUID(user_id)
+    except ValueError:
+        return False
+    
+    result = self.db_session.query(UserModel).filter_by(id=user_uuid).delete()
+    self.db_session.commit()
+    return result > 0
+```
+
+Reference: `user_repository_impl.py:66-74`
+
+## Best Practices
+
+### UUID Validation
+
+Always validate UUID strings before querying:
+
+```python
+try:
+    user_uuid = UUID(user_id)
+except ValueError:
+    return None  # or False, depending on return type
+```
+
+### Session Management
+
+- Repositories receive database sessions via dependency injection
+- Always commit after mutations
+- Use `scalar()` for existence checks to get boolean results
+
+### Error Handling
+
+- Handle UUID parsing errors gracefully
+- Return appropriate default values (None, False, empty list)
+- Don't expose SQLAlchemy exceptions to the application layer
+
+## Interface Definition
+
+Repositories implement interfaces defined in the application layer:
+
+```python
+from abc import ABC, abstractmethod
+from typing import Optional, List
+
+class IUserRepository(ABC):
+    @abstractmethod
+    def save(self, user: User) -> User:
+        pass
+    
+    @abstractmethod
+    def find_by_id(self, user_id: str) -> Optional[User]:
+        pass
+    
+    @abstractmethod
+    def exists_by_email(self, email: str) -> bool:
+        pass
+```
+
+This ensures the domain layer remains independent of infrastructure concerns.
+
+## Testing Repositories
+
+### Unit Tests
+
+Use in-memory SQLite for fast unit tests:
+
+```python
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+def test_exists_by_email():
+    engine = create_engine('sqlite:///:memory:')
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    
+    repo = UserRepositoryImpl(session)
+    assert repo.exists_by_email('test@example.com') == False
+```
+
+### Integration Tests
+
+Use a test database with actual PostgreSQL:
+
+```python
+@pytest.fixture
+def db_session():
+    # Setup test database
+    yield session
+    # Cleanup
+```
+
+## Related Documentation
+
+- [Models](/development/infrastructure/models) - SQLAlchemy model definitions
+- [Services](/development/infrastructure/services) - Infrastructure service implementations
+- [Use Cases](/development/application/use-cases) - Application layer that depends on repositories

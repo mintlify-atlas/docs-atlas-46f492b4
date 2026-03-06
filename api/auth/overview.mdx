@@ -1,0 +1,110 @@
+---
+title: 'Authentication API Overview'
+description: 'Comprehensive guide to authentication endpoints in the Soft-Bee API'
+---
+
+## Overview
+
+The Soft-Bee Authentication API provides secure user authentication and authorization using JWT (JSON Web Tokens). The API follows Clean Architecture and Domain-Driven Design principles.
+
+## Base URL
+
+```
+/api/v1/auth
+```
+
+## Authentication Flow
+
+1. **Register** - Create a new user account
+2. **Login** - Authenticate and receive access/refresh tokens
+3. **Refresh Token** - Get a new access token using refresh token
+4. **Logout** - Invalidate refresh token and end session
+
+## Token Types
+
+### Access Token
+- Short-lived token for API requests
+- Default expiration: 15 minutes (900 seconds)
+- Extended expiration with `remember_me`: 24 hours (86400 seconds)
+- Include in requests: `Authorization: Bearer {access_token}`
+
+### Refresh Token
+- Long-lived token for obtaining new access tokens
+- Default expiration: 7 days (604800 seconds)
+- Extended expiration with `remember_me`: 30 days (2592000 seconds)
+- Store securely on client side
+
+## Available Endpoints
+
+<CardGroup cols={2}>
+  <Card title="Register User" icon="user-plus" href="/api/auth/register">
+    Create a new user account
+  </Card>
+  <Card title="Login" icon="right-to-bracket" href="/api/auth/login">
+    Authenticate and get tokens
+  </Card>
+  <Card title="Refresh Token" icon="rotate" href="/api/auth/refresh-token">
+    Get new access token
+  </Card>
+  <Card title="Logout" icon="right-from-bracket" href="/api/auth/logout">
+    End user session
+  </Card>
+</CardGroup>
+
+## Security Features
+
+### Password Requirements
+- Minimum 8 characters
+- Must contain uppercase letter
+- Must contain lowercase letter
+- Must contain number
+- Must contain special character
+
+### Username Requirements
+- 3-50 characters
+- Only letters, numbers, and underscores
+- Must be unique
+
+### Account Security
+- Failed login attempt tracking
+- Account lockout after multiple failed attempts
+- Email verification system
+- Secure password hashing
+
+## Error Responses
+
+All endpoints return consistent error responses:
+
+```json
+{
+  "error": "Error message description"
+}
+```
+
+### Common HTTP Status Codes
+
+| Code | Description |
+|------|-------------|
+| 200 | Success |
+| 201 | Created (registration) |
+| 400 | Bad Request (validation error) |
+| 401 | Unauthorized (invalid credentials or token) |
+| 404 | Not Found |
+| 500 | Internal Server Error |
+
+## Rate Limiting
+
+<Note>
+Rate limiting implementation may vary per deployment. Contact your administrator for specific limits.
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="bolt" href="/quickstart">
+    Get started with the API
+  </Card>
+  <Card title="Authentication Guide" icon="shield-halved" href="/guides/authentication">
+    Learn authentication best practices
+  </Card>
+</CardGroup>

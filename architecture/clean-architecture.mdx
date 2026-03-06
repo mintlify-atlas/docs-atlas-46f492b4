@@ -1,0 +1,373 @@
+---
+title: 'Clean Architecture Layers'
+description: 'Deep dive into the three-layer architecture of Soft-Bee API'
+icon: 'layer-group'
+---
+
+## The Three Layers
+
+Soft-Bee API implements Clean Architecture with three distinct layers, each with specific responsibilities and dependencies.
+
+<Note>
+  **Dependency Rule:** Dependencies always point inward. Outer layers can depend on inner layers, but never the reverse.
+</Note>
+
+## Domain Layer
+
+The **innermost layer** containing pure business logic with zero dependencies on frameworks or infrastructure.
+
+### Components
+
+<CardGroup cols={2}>
+  <Card title="Entities" icon="cube">
+    Core business objects with behavior and business rules
+  </Card>
+  <Card title="Value Objects" icon="gem">
+    Immutable objects defined by their attributes (e.g., Email, Password)
+  </Card>
+  <Card title="Domain Events" icon="bell">
+    Events that represent something important that happened in the domain
+  </Card>
+  <Card title="Domain Exceptions" icon="triangle-exclamation">
+    Business rule violations and domain-specific errors
+  </Card>
+</CardGroup>
+
+### Example: User Entity
+
+Here's how the User entity is implemented with business logic:
+
+```python src/features/auth/domain/entities/user.py
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Optional, List
+from ...domain.value_objects.email import Email
+from ...domain.events.auth_events import UserLoggedInEvent
+
+@dataclass
+class User:
+    """Entidad User para autenticación"""
+    
+    email: Email
+    username: str
+    hashed_password: str
+    id: Optional[str] = None
+    is_active: bool = True
+    is_verified: bool = False
+    failed_login_attempts: int = 0
+    _events: List = field(default_factory=list, init=False, repr=False)
+    
+    def login_successful(self):
+        """Manejar login exitoso"""
+        self.last_login = datetime.utcnow()
+        self.failed_login_attempts = 0
+        self.updated_at = datetime.utcnow()
+        
+        # Registrar evento de dominio
+        self._register_event(UserLoggedInEvent(
+            user_id=self.id,
+            email=str(self.email),
+            timestamp=datetime.utcnow()
+        ))
+    
+    def login_failed(self):
+        """Manejar intento de login fallido"""
+        self.failed_login_attempts += 1
+        self.updated_at = datetime.utcnow()
+    
+    def is_locked(self) -> bool:
+        """Verificar si la cuenta está bloqueada"""
+        return self.failed_login_attempts >= 5
+```
+
+<Tip>
+  Notice how the entity contains business rules (e.g., account locking after 5 failed attempts) without any database or framework dependencies.
+</Tip>
+
+### Directory Structure
+
+```
+src/features/{feature}/domain/
+├── entities/          # Business entities
+│   └── user.py
+├── value_objects/     # Immutable value objects
+│   ├── email.py
+│   └── password.py
+├── events/            # Domain events
+│   └── auth_events.py
+├── exceptions/        # Domain exceptions
+│   └── auth_exceptions.py
+└── services/          # Domain services
+```
+
+---
+
+## Application Layer
+
+The **middle layer** that orchestrates business logic through use cases and defines contracts (interfaces).
+
+### Components
+
+<CardGroup cols={2}>
+  <Card title="Use Cases" icon="gears">
+    Application-specific business rules and workflows
+  </Card>
+  <Card title="DTOs" icon="file-code">
+    Data Transfer Objects for crossing layer boundaries
+  </Card>
+  <Card title="Interfaces" icon="handshake">
+    Contracts that infrastructure must implement
+  </Card>
+  <Card title="Mappers" icon="arrows-left-right">
+    Convert between entities, DTOs, and models
+  </Card>
+</CardGroup>
+
+### Example: Login Use Case
+
+Use cases orchestrate domain logic and coordinate with repositories:
+
+```python src/features/auth/application/use_cases/login_user.py
+from typing import Tuple, Optional
+from ...application.dto.auth_dto import LoginRequestDTO, LoginResponseDTO
+from ...application.interfaces.repositories.user_repository import IUserRepository
+from ...application.interfaces.services.token_service import ITokenService
+from ...domain.exceptions.auth_exceptions import InvalidCredentialsException
+
+class LoginUserUseCase:
+    """Caso de uso: Login de usuario"""
+    
+    def __init__(
+        self,
+        user_repository: IUserRepository,
+        token_service: ITokenService,
+        password_hasher: Any
+    ):
+        self.user_repository = user_repository
+        self.token_service = token_service
+        self.password_hasher = password_hasher
+    
+    def execute(self, request: LoginRequestDTO) -> Tuple[Optional[LoginResponseDTO], Optional[str]]:
+        # 1. Buscar usuario
+        user = self.user_repository.find_by_email(request.email)
+        if not user:
+            raise UserNotFoundException()
+        
+        # 2. Verificar si está bloqueado
+        if user.is_locked():
+            raise AccountLockedException()
+        
+        # 3. Verificar password
+        if not self.password_hasher.verify(request.password, user.hashed_password):
+            user.login_failed()
+            self.user_repository.save(user)
+            raise InvalidCredentialsException()
+        
+        # 4. Login exitoso
+        user.login_successful()
+        self.user_repository.save(user)
+        
+        # 5. Generar tokens
+        access_token = self.token_service.create_access_token(token_data)
+        refresh_token = self.token_service.create_refresh_token(token_data)
+        
+        return LoginResponseDTO(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            user=user_data
+        ), None
+```
+
+<Note>
+  The use case depends on **interfaces** (IUserRepository, ITokenService), not concrete implementations. This is the Dependency Inversion Principle in action.
+</Note>
+
+### Directory Structure
+
+```
+src/features/{feature}/application/
+├── use_cases/         # Application workflows
+│   ├── login_user.py
+│   └── register_user.py
+├── dto/               # Data Transfer Objects
+│   ├── auth_dto.py
+│   └── user_dto.py
+├── interfaces/        # Contracts for infrastructure
+│   ├── repositories/
+│   │   └── user_repository.py
+│   └── services/
+│       └── token_service.py
+└── mappers/           # Entity ↔ DTO ↔ Model conversion
+    └── user_mapper.py
+```
+
+---
+
+## Infrastructure Layer
+
+The **outermost layer** that implements technical details and external concerns.
+
+### Components
+
+<CardGroup cols={2}>
+  <Card title="Repositories" icon="database">
+    Concrete implementations of repository interfaces
+  </Card>
+  <Card title="Models" icon="table">
+    Database models (SQLAlchemy, etc.)
+  </Card>
+  <Card title="External Services" icon="cloud">
+    Email, SMS, payment gateways, etc.
+  </Card>
+  <Card title="Presentation" icon="window">
+    HTTP endpoints, schemas, and validation
+  </Card>
+</CardGroup>
+
+### Example: Repository Implementation
+
+```python src/features/auth/infrastructure/repositories/user_repository_impl.py
+from sqlalchemy.orm import Session
+from ...domain.entities.user import User
+from ...application.interfaces.repositories.user_repository import IUserRepository
+from ..models.user_model import UserModel
+from uuid import UUID
+
+class UserRepositoryImpl(IUserRepository):
+    """Implementación del repositorio de usuarios con SQLAlchemy"""
+    
+    def __init__(self, db_session: Session):
+        self.db_session = db_session
+    
+    def find_by_email(self, email: str) -> Optional[User]:
+        user_model = self.db_session.query(UserModel).filter_by(email=email).first()
+        return UserMapper.to_entity(user_model) if user_model else None
+    
+    def save(self, user: User) -> User:
+        user_model = UserMapper.to_model(user)
+        self.db_session.add(user_model)
+        self.db_session.commit()
+        return UserMapper.to_entity(user_model)
+```
+
+### Example: API Endpoint
+
+```python src/features/auth/presentation/api/v1/endpoints/auth.py
+from flask import Blueprint, request, jsonify
+from dependency_injector.wiring import inject, Provide
+from .....application.use_cases.login_user import LoginUserUseCase
+from src.core.dependencies.containers import MainContainer as Container
+
+auth_bp = Blueprint('auth_v1', __name__, url_prefix='/api/v1/auth')
+
+@auth_bp.route('/login', methods=['POST'])
+@inject
+def login(
+    login_use_case: LoginUserUseCase = Provide[Container.auth.login_use_case]
+):
+    """Login endpoint"""
+    # Validar input
+    data = LoginSchema().load(request.json)
+    
+    # Convertir a DTO
+    login_request = LoginRequestDTO(**data)
+    
+    # Ejecutar caso de uso
+    result, error = login_use_case.execute(login_request)
+    
+    if error:
+        return jsonify({"error": error}), 401
+    
+    return jsonify(result), 200
+```
+
+<Tip>
+  The endpoint is just a thin adapter that validates input, calls the use case, and formats the response. All business logic lives in the domain and application layers.
+</Tip>
+
+### Directory Structure
+
+```
+src/features/{feature}/
+├── infrastructure/
+│   ├── repositories/      # Repository implementations
+│   │   └── user_repository_impl.py
+│   ├── models/            # Database models
+│   │   └── user_model.py
+│   └── services/          # External service implementations
+│       └── security/
+│           ├── jwt_handler.py
+│           └── password_hasher.py
+└── presentation/
+    └── api/v1/
+        ├── endpoints/     # HTTP endpoints
+        │   └── auth.py
+        └── schemas/       # Request/response validation
+            └── auth_schemas.py
+```
+
+---
+
+## Layer Communication
+
+<Steps>
+  <Step title="Request arrives at Presentation Layer">
+    HTTP request is received and validated using schemas
+  </Step>
+  
+  <Step title="DTO is created">
+    Request data is converted to a DTO (Data Transfer Object)
+  </Step>
+  
+  <Step title="Use Case is executed">
+    Application layer orchestrates the business logic
+  </Step>
+  
+  <Step title="Domain rules are applied">
+    Entities enforce business rules and invariants
+  </Step>
+  
+  <Step title="Repository persists changes">
+    Infrastructure layer saves to database
+  </Step>
+  
+  <Step title="Response is returned">
+    Result flows back through layers to HTTP response
+  </Step>
+</Steps>
+
+## Benefits of This Architecture
+
+<AccordionGroup>
+  <Accordion title="Testability">
+    Each layer can be tested independently:
+    - **Domain:** Pure unit tests with no dependencies
+    - **Application:** Test use cases with mock repositories
+    - **Infrastructure:** Integration tests with real database
+  </Accordion>
+  
+  <Accordion title="Maintainability">
+    Changes are isolated to specific layers:
+    - Change database? Only update Infrastructure
+    - New business rule? Only update Domain
+    - Different API format? Only update Presentation
+  </Accordion>
+  
+  <Accordion title="Flexibility">
+    Easy to swap implementations:
+    - Switch from PostgreSQL to MongoDB
+    - Replace Flask with FastAPI
+    - Add GraphQL alongside REST
+  </Accordion>
+</AccordionGroup>
+
+## Related Pages
+
+<CardGroup cols={2}>
+  <Card title="Project Structure" icon="folder-tree" href="/architecture/project-structure">
+    See the complete directory structure
+  </Card>
+  <Card title="Dependency Injection" icon="plug" href="/architecture/dependency-injection">
+    Learn how dependencies are wired together
+  </Card>
+</CardGroup>

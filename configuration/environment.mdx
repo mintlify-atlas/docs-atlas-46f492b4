@@ -1,0 +1,205 @@
+---
+title: Environment Configuration
+description: Configure different environments for the Soft-Bee API application
+icon: leaf
+---
+
+## Overview
+
+The Soft-Bee API supports multiple environment configurations to facilitate development, testing, and production deployments. The environment is controlled via the `FLASK_ENV` variable.
+
+<Note>
+  The application automatically loads environment-specific configuration files (`.env.{environment}`) if they exist, allowing you to override settings per environment.
+</Note>
+
+## Available Environments
+
+The API supports four distinct environments:
+
+### Local
+Used for local development on your machine.
+
+<ParamField path="FLASK_ENV" type="string" default="local">
+  Set to `local` for local development environment
+</ParamField>
+
+```bash
+FLASK_ENV=local
+```
+
+**Configuration Details:**
+- **DEBUG**: `True`
+- **TESTING**: `False`
+- **Default Database**: `postgresql://postgres:postgres@localhost:5432/softbee_local`
+- **Frontend URL**: `http://localhost:3000`
+- **Base URL**: `http://localhost:5000`
+
+### Development
+Used for development servers and team collaboration.
+
+<ParamField path="FLASK_ENV" type="string">
+  Set to `development` for development server environment
+</ParamField>
+
+```bash
+FLASK_ENV=development
+```
+
+**Configuration Details:**
+- **DEBUG**: `True`
+- **TESTING**: `False`
+- **Default Database**: `postgresql://postgres:postgres@localhost:5432/softbee_dev`
+
+### Production
+Used for production deployments.
+
+<ParamField path="FLASK_ENV" type="string">
+  Set to `production` for production environment
+</ParamField>
+
+```bash
+FLASK_ENV=production
+```
+
+<Warning>
+  Production environment requires `DATABASE_URL`, `JWT_KEY`, and `SECRET_KEY` to be explicitly set. The application will raise an error if these are missing.
+</Warning>
+
+**Configuration Details:**
+- **DEBUG**: `False`
+- **TESTING**: `False`
+- **Database**: Must be provided via `DATABASE_URL` environment variable
+- **Validation**: Enforces presence of critical security variables
+
+### Testing
+Used for automated testing and CI/CD pipelines.
+
+<ParamField path="FLASK_ENV" type="string">
+  Set to `testing` for test environment
+</ParamField>
+
+```bash
+FLASK_ENV=testing
+```
+
+**Configuration Details:**
+- **DEBUG**: `True`
+- **TESTING**: `True`
+- **Default Database**: `postgresql://postgres:postgres@localhost:5432/softbee_test`
+- **CSRF Protection**: Disabled for easier testing
+
+## Environment Variables
+
+### General Configuration
+
+<ParamField path="SECRET_KEY" type="string" required>
+  Flask secret key for session management and cryptographic operations
+  
+  <Warning>
+    Never use the default value in production. Generate a secure random key.
+  </Warning>
+</ParamField>
+
+```bash
+SECRET_KEY=your-secret-key-here
+```
+
+### URL Configuration
+
+<ParamField path="FRONTEND_URL" type="string" default="http://localhost:3000">
+  URL of the frontend application (used for CORS and redirects)
+</ParamField>
+
+<ParamField path="BASE_URL" type="string" default="http://localhost:5000">
+  Base URL of the API server
+</ParamField>
+
+```bash
+FRONTEND_URL=http://localhost:3000
+BASE_URL=http://localhost:5000
+```
+
+## Environment-Specific Files
+
+You can create environment-specific `.env` files that override the main `.env` file:
+
+<CodeGroup>
+
+```bash .env.local
+FLASK_ENV=local
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/softbee_local
+DEBUG=True
+```
+
+```bash .env.development
+FLASK_ENV=development
+DATABASE_URL=postgresql://postgres:postgres@dev-server:5432/softbee_dev
+DEBUG=True
+```
+
+```bash .env.production
+FLASK_ENV=production
+DATABASE_URL=postgresql://user:password@prod-server:5432/softbee_prod
+SECRET_KEY=super-secure-random-key
+JWT_KEY=super-secure-jwt-key
+DEBUG=False
+```
+
+```bash .env.testing
+FLASK_ENV=testing
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/softbee_test
+DEBUG=True
+```
+
+</CodeGroup>
+
+## Configuration Loading Priority
+
+The application loads configuration in the following order:
+
+1. Loads `.env` file (if exists)
+2. Reads `FLASK_ENV` variable to determine environment
+3. Loads `.env.{environment}` file (if exists) - **overrides step 1**
+4. Applies environment-specific configuration class
+5. Environment variables override all file-based settings
+
+<Note>
+  Environment-specific files (`.env.{environment}`) override values from the main `.env` file, allowing you to maintain a base configuration with environment-specific overrides.
+</Note>
+
+## Example Setup
+
+### Local Development
+
+```bash
+# .env
+FLASK_ENV=local
+SECRET_KEY=dev-secret-key
+JWT_KEY=dev-jwt-key
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/softbee_local
+```
+
+### Production Deployment
+
+```bash
+# Set via environment variables (recommended for production)
+export FLASK_ENV=production
+export SECRET_KEY=$(openssl rand -hex 32)
+export JWT_KEY=$(openssl rand -hex 32)
+export DATABASE_URL=postgresql://user:pass@host:5432/softbee_prod
+```
+
+<Warning>
+  In production, prefer setting sensitive values via environment variables or secret management systems rather than `.env` files.
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Database Configuration" icon="database" href="/configuration/database">
+    Learn how to configure PostgreSQL connections
+  </Card>
+  <Card title="JWT Configuration" icon="key" href="/configuration/jwt">
+    Configure authentication and token settings
+  </Card>
+</CardGroup>

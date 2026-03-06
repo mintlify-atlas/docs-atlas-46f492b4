@@ -1,0 +1,325 @@
+---
+title: 'Rate Limiting'
+description: 'Understanding API rate limits and best practices for the Soft-Bee API'
+---
+
+## Overview
+
+Rate limiting helps protect the Soft-Bee API from abuse and ensures fair usage for all users. While rate limiting is not currently implemented in the API, this document outlines best practices and what to expect when it is enabled.
+
+<Note>
+  Rate limiting features are currently under development. This documentation describes the planned implementation and best practices you should follow in preparation.
+</Note>
+
+## Planned Rate Limits
+
+When implemented, the API will enforce the following rate limits:
+
+### Authentication Endpoints
+
+| Endpoint | Rate Limit | Window |
+|----------|------------|--------|
+| POST /api/v1/auth/register | 5 requests | per hour per IP |
+| POST /api/v1/auth/login | 10 requests | per 15 minutes per IP |
+| POST /api/v1/auth/refresh | 20 requests | per hour per user |
+| POST /api/v1/auth/verify | 30 requests | per hour per user |
+
+### Resource Endpoints
+
+| Endpoint Type | Rate Limit | Window |
+|---------------|------------|--------|
+| Read operations (GET) | 1000 requests | per hour per user |
+| Write operations (POST, PUT, PATCH) | 200 requests | per hour per user |
+| Delete operations (DELETE) | 100 requests | per hour per user |
+
+## Rate Limit Headers
+
+When rate limiting is active, the API will include the following headers in responses:
+
+```http
+X-RateLimit-Limit: 1000
+X-RateLimit-Remaining: 999
+X-RateLimit-Reset: 1709729400
+X-RateLimit-Window: 3600
+```
+
+### Header Descriptions
+
+| Header | Description |
+|--------|-------------|
+| `X-RateLimit-Limit` | Maximum number of requests allowed in the time window |
+| `X-RateLimit-Remaining` | Number of requests remaining in current window |
+| `X-RateLimit-Reset` | Unix timestamp when the rate limit window resets |
+| `X-RateLimit-Window` | Duration of the rate limit window in seconds |
+
+## Rate Limit Exceeded Response
+
+When you exceed the rate limit, the API will return a 429 status code:
+
+**HTTP Status**: 429 Too Many Requests
+
+```json
+{
+  "error": "Rate limit exceeded. Please try again later.",
+  "retry_after": 300
+}
+```
+
+The `retry_after` field indicates how many seconds you should wait before making another request.
+
+**Response Headers**:
+```http
+HTTP/1.1 429 Too Many Requests
+X-RateLimit-Limit: 1000
+X-RateLimit-Remaining: 0
+X-RateLimit-Reset: 1709729400
+Retry-After: 300
+```
+
+## Best Practices
+
+### Monitor Rate Limit Headers
+
+Always check the rate limit headers in API responses to avoid hitting limits:
+
+```python
+import requests
+import time
+
+response = requests.get(
+    "https://api.soft-bee.com/api/v1/hives",
+    headers={"Authorization": f"Bearer {token}"}
+)
+
+# Check remaining requests
+remaining = int(response.headers.get('X-RateLimit-Remaining', 999))
+if remaining < 10:
+    print(f"Warning: Only {remaining} requests remaining")
+
+# Check when limit resets
+reset_time = int(response.headers.get('X-RateLimit-Reset', 0))
+current_time = int(time.time())
+time_until_reset = reset_time - current_time
+print(f"Rate limit resets in {time_until_reset} seconds")
+```
+
+### Implement Exponential Backoff
+
+When you receive a 429 response, implement exponential backoff:
+
+```python
+import time
+import requests
+from requests.exceptions import HTTPError
+
+def make_request_with_retry(url, headers, max_retries=3):
+    retry_count = 0
+    base_delay = 1  # Start with 1 second
+    
+    while retry_count < max_retries:
+        try:
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()
+            return response
+        except HTTPError as e:
+            if e.response.status_code == 429:
+                retry_count += 1
+                
+                # Check Retry-After header
+                retry_after = e.response.headers.get('Retry-After')
+                if retry_after:
+                    delay = int(retry_after)
+                else:
+                    # Exponential backoff: 1s, 2s, 4s, 8s...
+                    delay = base_delay * (2 ** retry_count)
+                
+                print(f"Rate limit exceeded. Retrying in {delay} seconds...")
+                time.sleep(delay)
+            else:
+                raise
+    
+    raise Exception("Max retries exceeded")
+```
+
+### Batch Requests
+
+When possible, batch multiple operations into single requests to reduce API calls:
+
+```python
+# Instead of multiple individual requests:
+# for hive_id in hive_ids:
+#     get_hive(hive_id)
+
+# Make a single batch request:
+hives = get_multiple_hives(hive_ids)
+```
+
+### Cache Responses
+
+Cache API responses when the data doesn't change frequently:
+
+```python
+import time
+from functools import lru_cache
+
+@lru_cache(maxsize=100)
+def get_cached_hive(hive_id, cache_time):
+    """Cache hive data for 5 minutes"""
+    response = requests.get(
+        f"https://api.soft-bee.com/api/v1/hives/{hive_id}",
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    return response.json()
+
+# Use cache_time to invalidate cache every 5 minutes
+cache_key = int(time.time() / 300)  # 300 seconds = 5 minutes
+hive_data = get_cached_hive(hive_id, cache_key)
+```
+
+### Use Webhooks
+
+Instead of polling for updates, use webhooks (when available) to receive notifications:
+
+```python
+# Instead of polling:
+# while True:
+#     check_for_updates()
+#     time.sleep(60)
+
+# Use webhooks (when implemented):
+# register_webhook("https://your-server.com/webhook")
+```
+
+## Rate Limiting by IP vs User
+
+### IP-Based Rate Limiting
+
+Used for unauthenticated endpoints (registration, login):
+
+- Prevents abuse from a single source
+- Protects against brute force attacks
+- Applied before authentication
+
+### User-Based Rate Limiting
+
+Used for authenticated endpoints:
+
+- Ensures fair usage across all users
+- Prevents individual users from monopolizing resources
+- Applied after successful authentication
+
+## Handling Rate Limits in Different Languages
+
+### JavaScript/TypeScript
+
+```typescript
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  maxRetries: number = 3
+): Promise<Response> {
+  let retryCount = 0;
+  
+  while (retryCount < maxRetries) {
+    const response = await fetch(url, options);
+    
+    if (response.status === 429) {
+      retryCount++;
+      const retryAfter = response.headers.get('Retry-After');
+      const delay = retryAfter ? parseInt(retryAfter) * 1000 : 1000 * Math.pow(2, retryCount);
+      
+      console.log(`Rate limited. Retrying in ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      continue;
+    }
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    return response;
+  }
+  
+  throw new Error('Max retries exceeded');
+}
+
+// Usage
+const response = await fetchWithRetry(
+  'https://api.soft-bee.com/api/v1/hives',
+  {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  }
+);
+```
+
+### cURL with Retry
+
+```bash
+#!/bin/bash
+
+MAX_RETRIES=3
+RETRY_COUNT=0
+
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+  HTTP_STATUS=$(curl -s -o response.json -w "%{http_code}" \
+    -H "Authorization: Bearer $TOKEN" \
+    https://api.soft-bee.com/api/v1/hives)
+  
+  if [ $HTTP_STATUS -eq 200 ]; then
+    cat response.json
+    exit 0
+  elif [ $HTTP_STATUS -eq 429 ]; then
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+    DELAY=$((2 ** RETRY_COUNT))
+    echo "Rate limited. Retrying in $DELAY seconds..."
+    sleep $DELAY
+  else
+    echo "Error: HTTP $HTTP_STATUS"
+    cat response.json
+    exit 1
+  fi
+done
+
+echo "Max retries exceeded"
+exit 1
+```
+
+## Enterprise Rate Limits
+
+<Info>
+  If your application requires higher rate limits, contact the Soft-Bee team about enterprise plans with custom rate limit tiers.
+</Info>
+
+Enterprise plans may include:
+
+- Custom rate limit quotas
+- Dedicated API instances
+- Priority support
+- SLA guarantees
+
+## Monitoring and Alerts
+
+Set up monitoring to track your API usage:
+
+```python
+import logging
+
+def log_rate_limit_info(response):
+    """Log rate limit information for monitoring"""
+    limit = response.headers.get('X-RateLimit-Limit')
+    remaining = response.headers.get('X-RateLimit-Remaining')
+    reset = response.headers.get('X-RateLimit-Reset')
+    
+    if remaining and int(remaining) < int(limit) * 0.1:  # Less than 10% remaining
+        logging.warning(
+            f"Rate limit warning: {remaining}/{limit} requests remaining. "
+            f"Resets at {reset}"
+        )
+```
+
+## Related Documentation
+
+- [Error Handling](/api/error-handling) - Learn about rate limit error responses
+- [Authentication](/api/authentication) - Understand authentication rate limits

@@ -1,0 +1,213 @@
+---
+title: 'Register User'
+api: 'POST /api/v1/auth/register'
+description: 'Create a new user account in the Soft-Bee system'
+---
+
+## Endpoint
+
+```
+POST /api/v1/auth/register
+```
+
+Creates a new user account with email verification. The user will need to verify their email before accessing all features.
+
+## Request Body
+
+<ParamField body="email" type="string" required>
+  Valid email address for the user account. Must be unique in the system.
+  
+  **Format**: Valid email format (validated by EmailStr)
+  
+  **Example**: `user@example.com`
+</ParamField>
+
+<ParamField body="username" type="string" required>
+  Unique username for the account.
+  
+  **Requirements**:
+  - 3-50 characters
+  - Only letters, numbers, and underscores allowed
+  - Must be unique
+  
+  **Pattern**: `^[a-zA-Z0-9_]+$`
+  
+  **Example**: `john_doe`
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  Strong password for account security.
+  
+  **Requirements**:
+  - Minimum 8 characters
+  - At least one uppercase letter (A-Z)
+  - At least one lowercase letter (a-z)
+  - At least one number (0-9)
+  - At least one special character (!@#$%^&*)
+  
+  **Example**: `MyP@ssw0rd`
+</ParamField>
+
+<ParamField body="confirm_password" type="string" required>
+  Password confirmation. Must exactly match the `password` field.
+  
+  **Example**: `MyP@ssw0rd`
+</ParamField>
+
+## Response
+
+<ResponseField name="id" type="string">
+  Unique identifier for the newly created user.
+</ResponseField>
+
+<ResponseField name="email" type="string">
+  Email address of the registered user.
+</ResponseField>
+
+<ResponseField name="username" type="string">
+  Username of the registered user.
+</ResponseField>
+
+<ResponseField name="is_verified" type="boolean">
+  Email verification status. Initially `false` until user verifies their email.
+</ResponseField>
+
+<ResponseField name="created_at" type="string">
+  ISO 8601 timestamp of account creation.
+  
+  **Format**: `YYYY-MM-DDTHH:MM:SS.mmmmmm`
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Success message confirming registration.
+  
+  **Default**: `"User registered successfully"`
+</ResponseField>
+
+## Example Request
+
+```bash cURL
+curl -X POST https://api.softbee.com/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "john.doe@example.com",
+    "username": "john_doe",
+    "password": "MySecure@Pass123",
+    "confirm_password": "MySecure@Pass123"
+  }'
+```
+
+```python Python
+import requests
+
+url = "https://api.softbee.com/api/v1/auth/register"
+payload = {
+    "email": "john.doe@example.com",
+    "username": "john_doe",
+    "password": "MySecure@Pass123",
+    "confirm_password": "MySecure@Pass123"
+}
+
+response = requests.post(url, json=payload)
+print(response.json())
+```
+
+```javascript JavaScript
+fetch('https://api.softbee.com/api/v1/auth/register', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    email: 'john.doe@example.com',
+    username: 'john_doe',
+    password: 'MySecure@Pass123',
+    confirm_password: 'MySecure@Pass123'
+  })
+})
+.then(response => response.json())
+.then(data => console.log(data));
+```
+
+## Example Response
+
+<ResponseExample>
+```json 201 Created
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "email": "john.doe@example.com",
+  "username": "john_doe",
+  "is_verified": false,
+  "created_at": "2026-03-06T10:30:45.123456",
+  "message": "User registered successfully"
+}
+```
+</ResponseExample>
+
+## Error Responses
+
+<ResponseExample>
+```json 400 Bad Request - Validation Error
+{
+  "error": "Must contain uppercase letter"
+}
+```
+
+```json 400 Bad Request - Passwords Don't Match
+{
+  "error": "Passwords do not match"
+}
+```
+
+```json 400 Bad Request - Email Exists
+{
+  "error": "Email already exists"
+}
+```
+
+```json 400 Bad Request - Username Exists
+{
+  "error": "Username already exists"
+}
+```
+
+```json 400 Bad Request - Invalid Username
+{
+  "error": "String should match pattern '^[a-zA-Z0-9_]+$'"
+}
+```
+</ResponseExample>
+
+## Validation Rules
+
+### Email Validation
+- Must be valid email format
+- Must be unique (not already registered)
+- Case-insensitive uniqueness check
+
+### Password Validation
+The password validator checks for:
+1. **Length**: Minimum 8 characters
+2. **Uppercase**: At least one uppercase letter (A-Z)
+3. **Lowercase**: At least one lowercase letter (a-z)
+4. **Number**: At least one digit (0-9)
+5. **Special Character**: At least one special character (!@#$%^&*()_+-=[]{}|;:',.?/)
+6. **Match**: Must exactly match `confirm_password`
+
+### Username Validation
+- Minimum 3 characters
+- Maximum 50 characters
+- Only alphanumeric characters and underscores
+- Must be unique (not already registered)
+
+## Next Steps
+
+After successful registration:
+
+1. **Verify Email**: User should check their email for verification link
+2. **Login**: Use the [Login endpoint](/api/auth/login) to authenticate
+3. **Access API**: Use the access token to make authenticated requests
+
+<Card title="Login" icon="right-to-bracket" href="/api/auth/login">
+  Learn how to authenticate after registration
+</Card>

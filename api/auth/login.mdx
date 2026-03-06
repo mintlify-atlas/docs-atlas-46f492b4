@@ -1,0 +1,228 @@
+---
+title: 'Login'
+api: 'POST /api/v1/auth/login'
+description: 'Authenticate user and receive access and refresh tokens'
+---
+
+## Endpoint
+
+```
+POST /api/v1/auth/login
+```
+
+Authenticates a user with email and password, returning JWT tokens for API access. Tracks failed login attempts and may lock accounts after multiple failures.
+
+## Request Body
+
+<ParamField body="email" type="string" required>
+  User's registered email address.
+  
+  **Format**: Valid email format (validated by EmailStr)
+  
+  **Example**: `user@example.com`
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  User's password.
+  
+  **Minimum**: 1 character
+  
+  **Example**: `MyP@ssw0rd`
+</ParamField>
+
+<ParamField body="remember_me" type="boolean" default="false">
+  Extended session duration flag.
+  
+  **When `false`**:
+  - Access token expires in 15 minutes (900 seconds)
+  - Refresh token expires in 7 days (604800 seconds)
+  
+  **When `true`**:
+  - Access token expires in 24 hours (86400 seconds)
+  - Refresh token expires in 30 days (2592000 seconds)
+</ParamField>
+
+## Response
+
+<ResponseField name="access_token" type="string">
+  JWT access token for authenticating API requests.
+  
+  Use this token in the Authorization header: `Authorization: Bearer {access_token}`
+</ResponseField>
+
+<ResponseField name="refresh_token" type="string">
+  JWT refresh token for obtaining new access tokens when they expire.
+  
+  Store this securely on the client side. Use with the [Refresh Token endpoint](/api/auth/refresh-token).
+</ResponseField>
+
+<ResponseField name="token_type" type="string">
+  Token type for the Authorization header.
+  
+  **Value**: `"bearer"`
+</ResponseField>
+
+<ResponseField name="expires_in" type="integer">
+  Access token expiration time in seconds.
+  
+  **Values**:
+  - `900` (15 minutes) when `remember_me=false`
+  - `86400` (24 hours) when `remember_me=true`
+</ResponseField>
+
+<ResponseField name="user" type="object">
+  User information object.
+  
+  <Expandable title="user properties">
+    <ResponseField name="user.id" type="string">
+      Unique user identifier (UUID).
+    </ResponseField>
+    
+    <ResponseField name="user.email" type="string">
+      User's email address.
+    </ResponseField>
+    
+    <ResponseField name="user.username" type="string">
+      User's username.
+    </ResponseField>
+    
+    <ResponseField name="user.is_verified" type="boolean">
+      Email verification status.
+    </ResponseField>
+    
+    <ResponseField name="user.is_active" type="boolean">
+      Account active status.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Example Request
+
+```bash cURL
+curl -X POST https://api.softbee.com/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "john.doe@example.com",
+    "password": "MySecure@Pass123",
+    "remember_me": true
+  }'
+```
+
+```python Python
+import requests
+
+url = "https://api.softbee.com/api/v1/auth/login"
+payload = {
+    "email": "john.doe@example.com",
+    "password": "MySecure@Pass123",
+    "remember_me": True
+}
+
+response = requests.post(url, json=payload)
+data = response.json()
+
+# Store tokens securely
+access_token = data['access_token']
+refresh_token = data['refresh_token']
+
+print(f"Logged in as: {data['user']['username']}")
+```
+
+```javascript JavaScript
+fetch('https://api.softbee.com/api/v1/auth/login', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    email: 'john.doe@example.com',
+    password: 'MySecure@Pass123',
+    remember_me: true
+  })
+})
+.then(response => response.json())
+.then(data => {
+  // Store tokens securely (e.g., httpOnly cookies or secure storage)
+  localStorage.setItem('access_token', data.access_token);
+  localStorage.setItem('refresh_token', data.refresh_token);
+  console.log('Logged in:', data.user);
+});
+```
+
+## Example Response
+
+<ResponseExample>
+```json 200 OK
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1NTBlODQwMC1lMjliLTQxZDQtYTcxNi00NDY2NTU0NDAwMDAiLCJlbWFpbCI6ImpvaG4uZG9lQGV4YW1wbGUuY29tIiwidXNlcm5hbWUiOiJqb2huX2RvZSIsImlzX3ZlcmlmaWVkIjp0cnVlLCJleHAiOjE3MDk3MzQ4NDV9.xyz...",
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1NTBlODQwMC1lMjliLTQxZDQtYTcxNi00NDY2NTU0NDAwMDAiLCJleHAiOjE3MTIyMzk2NDV9.abc...",
+  "token_type": "bearer",
+  "expires_in": 86400,
+  "user": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "email": "john.doe@example.com",
+    "username": "john_doe",
+    "is_verified": true,
+    "is_active": true
+  }
+}
+```
+</ResponseExample>
+
+## Error Responses
+
+<ResponseExample>
+```json 400 Bad Request - Validation Error
+{
+  "error": "Email validation error: invalid email format"
+}
+```
+
+```json 401 Unauthorized - Invalid Credentials
+{
+  "error": "Invalid email or password"
+}
+```
+
+```json 401 Unauthorized - Account Locked
+{
+  "error": "Account is locked due to multiple failed attempts"
+}
+```
+</ResponseExample>
+
+## Security Features
+
+### Failed Login Tracking
+The system tracks failed login attempts:
+- Increments failure counter on invalid password
+- Resets counter on successful login
+- Account may be locked after multiple failures
+
+### Account Lockout
+After multiple failed login attempts, accounts are temporarily locked to prevent brute force attacks. Contact support to unlock your account.
+
+### Token Security
+- **Access Token**: Include in API requests via `Authorization: Bearer {token}` header
+- **Refresh Token**: Store securely, use only for obtaining new access tokens
+- **Never** share tokens or commit them to version control
+
+## Using the Access Token
+
+Include the access token in subsequent API requests:
+
+```bash
+curl -X GET https://api.softbee.com/api/v1/apiaries \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+## Token Expiration
+
+When your access token expires:
+1. The API will return a `401 Unauthorized` response
+2. Use the [Refresh Token endpoint](/api/auth/refresh-token) to get a new access token
+3. If the refresh token is also expired, the user must log in again
+
+<Card title="Refresh Token" icon="rotate" href="/api/auth/refresh-token">
+  Learn how to refresh expired access tokens
+</Card>

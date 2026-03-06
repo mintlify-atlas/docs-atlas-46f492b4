@@ -1,97 +1,81 @@
 ---
 title: "Introduction"
-description: "Welcome to the new home for your documentation"
+description: "Welcome to Soft-Bee API - A modern REST API for beekeeping management"
 ---
 
-## Setting up
+# Welcome to Soft-Bee API
 
-Get your documentation site up and running in minutes.
+Soft-Bee is a comprehensive REST API designed for beekeeping management systems. Built with Clean Architecture and Domain-Driven Design principles, it provides a robust foundation for managing apiaries, hives, production tracking, inventory, and inspections.
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
+## Key Features
 
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+<CardGroup cols={2}>
+  <Card title="Clean Architecture" icon="layer-group">
+    Built with DDD principles, ensuring maintainable and scalable code
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="JWT Authentication" icon="shield-halved">
+    Secure user authentication and authorization with JWT tokens
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="PostgreSQL Database" icon="database">
+    Reliable data storage with SQLAlchemy ORM
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="Modular Design" icon="cubes">
+    Feature-based architecture for easy extensibility
   </Card>
-</Columns>
+</CardGroup>
 
-## Create beautiful pages
+## What You Can Build
 
-Everything you need to create world-class documentation.
+Soft-Bee API enables you to build comprehensive beekeeping management applications:
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+- **User Management**: Secure registration, authentication, and profile management
+- **Apiary Monitoring**: Track hive health, production, and environmental conditions
+- **Production Tracking**: Monitor honey production, harvest schedules, and yields
+- **Inventory Management**: Manage equipment, supplies, and product inventory
+- **Inspection Records**: Document hive inspections and maintenance activities
 
-## Need inspiration?
+## Architecture Highlights
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+The API follows Clean Architecture with three distinct layers:
+
+<Steps>
+  <Step title="Domain Layer">
+    Core business logic with entities, value objects, and domain events
+  </Step>
+  <Step title="Application Layer">
+    Use cases, DTOs, and interfaces that orchestrate business logic
+  </Step>
+  <Step title="Infrastructure Layer">
+    Database models, repositories, and external service implementations
+  </Step>
+</Steps>
+
+## Quick Links
+
+<CardGroup cols={2}>
+  <Card title="Get Started" icon="rocket" href="/quickstart">
+    Start building with Soft-Bee API in minutes
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/auth/overview">
+    Explore authentication endpoints
+  </Card>
+  <Card title="Architecture Guide" icon="sitemap" href="/architecture/overview">
+    Learn about the system architecture
+  </Card>
+  <Card title="Development Setup" icon="laptop-code" href="/development/setup">
+    Set up your local development environment
+  </Card>
+</CardGroup>
+
+## Technology Stack
+
+- **Framework**: Flask 3.1.1
+- **Database**: PostgreSQL with SQLAlchemy 2.0
+- **Authentication**: JWT with python-jose
+- **Password Hashing**: bcrypt
+- **Dependency Injection**: dependency-injector
+- **Validation**: Pydantic 2.11
+
+<Note>
+  Soft-Bee API is designed to optimize beekeeping operations and improve sustainability and productivity in apiaries.
+</Note>

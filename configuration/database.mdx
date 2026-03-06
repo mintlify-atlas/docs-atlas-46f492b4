@@ -1,0 +1,335 @@
+---
+title: Database Configuration
+description: Configure PostgreSQL database connections for the Soft-Bee API
+icon: database
+---
+
+## Overview
+
+The Soft-Bee API uses PostgreSQL as its database backend. Database configuration is managed through the `DATABASE_URL` environment variable and varies by environment.
+
+<Note>
+  The application follows PostgreSQL connection URI format for database configuration.
+</Note>
+
+## Database URL Format
+
+The `DATABASE_URL` follows the PostgreSQL connection string format:
+
+```
+postgresql://[user[:password]@][host][:port][/database]
+```
+
+### Components
+
+<ParamField path="user" type="string" required>
+  PostgreSQL username
+</ParamField>
+
+<ParamField path="password" type="string" required>
+  PostgreSQL password
+</ParamField>
+
+<ParamField path="host" type="string" required>
+  Database server hostname or IP address
+</ParamField>
+
+<ParamField path="port" type="number" default="5432">
+  PostgreSQL port number
+</ParamField>
+
+<ParamField path="database" type="string" required>
+  Database name
+</ParamField>
+
+## Environment-Specific Databases
+
+Each environment uses a separate database to prevent data conflicts:
+
+### Local Environment
+
+<ParamField path="DATABASE_URL" type="string" default="postgresql://postgres:postgres@localhost:5432/softbee_local">
+  Database connection for local development
+</ParamField>
+
+```bash .env.local
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/softbee_local
+```
+
+**Default Configuration:**
+- **Database Name**: `softbee_local`
+- **Host**: `localhost`
+- **Port**: `5432`
+- **User**: `postgres`
+- **Password**: `postgres`
+
+### Development Environment
+
+<ParamField path="DATABASE_URL" type="string" default="postgresql://postgres:postgres@localhost:5432/softbee_dev">
+  Database connection for development server
+</ParamField>
+
+```bash .env.development
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/softbee_dev
+```
+
+**Default Configuration:**
+- **Database Name**: `softbee_dev`
+- **Host**: `localhost`
+- **Port**: `5432`
+- **User**: `postgres`
+- **Password**: `postgres`
+
+### Production Environment
+
+<ParamField path="DATABASE_URL" type="string" required>
+  Database connection for production (REQUIRED)
+</ParamField>
+
+<Warning>
+  Production environment requires `DATABASE_URL` to be explicitly set. The application will fail to start if this variable is missing.
+</Warning>
+
+```bash .env.production
+DATABASE_URL=postgresql://prod_user:secure_password@db.example.com:5432/softbee_prod
+```
+
+**Production Considerations:**
+- No default value provided
+- Must be explicitly configured
+- Use strong credentials
+- Consider using connection pooling
+- Enable SSL/TLS for remote connections
+
+### Testing Environment
+
+<ParamField path="DATABASE_URL" type="string" default="postgresql://postgres:postgres@localhost:5432/softbee_test">
+  Database connection for automated tests
+</ParamField>
+
+```bash .env.testing
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/softbee_test
+```
+
+**Default Configuration:**
+- **Database Name**: `softbee_test`
+- **Host**: `localhost`
+- **Port**: `5432`
+- **User**: `postgres`
+- **Password**: `postgres`
+
+<Note>
+  The test database is isolated to prevent interference with development or production data.
+</Note>
+
+## Additional PostgreSQL Variables
+
+For advanced PostgreSQL configuration, you can use these optional variables:
+
+<ParamField path="PGUSER" type="string" default="postgres">
+  PostgreSQL username (alternative to DATABASE_URL)
+</ParamField>
+
+<ParamField path="PGPASSWORD" type="string" default="postgres">
+  PostgreSQL password (alternative to DATABASE_URL)
+</ParamField>
+
+<ParamField path="PGHOST" type="string" default="localhost">
+  PostgreSQL host (alternative to DATABASE_URL)
+</ParamField>
+
+<ParamField path="PGPORT" type="number" default="5432">
+  PostgreSQL port (alternative to DATABASE_URL)
+</ParamField>
+
+<ParamField path="PGDATABASE" type="string" default="softbee">
+  PostgreSQL database name (alternative to DATABASE_URL)
+</ParamField>
+
+<ParamField path="SSL_MODE" type="string">
+  SSL mode for PostgreSQL connections (e.g., `require`, `disable`, `prefer`)
+</ParamField>
+
+```bash .env
+PGUSER=postgres
+PGPASSWORD=postgres
+PGHOST=localhost
+PGPORT=5432
+PGDATABASE=softbee
+SSL_MODE=require
+```
+
+<Note>
+  While these individual PostgreSQL variables are supported, using `DATABASE_URL` is recommended as it's more portable and follows standard conventions.
+</Note>
+
+## Database Setup Examples
+
+### Local Development Setup
+
+<Steps>
+  <Step title="Install PostgreSQL">
+    Install PostgreSQL on your local machine
+    
+    ```bash
+    # macOS
+    brew install postgresql
+    
+    # Ubuntu/Debian
+    sudo apt-get install postgresql postgresql-contrib
+    
+    # Windows
+    # Download installer from postgresql.org
+    ```
+  </Step>
+  
+  <Step title="Create Local Database">
+    Create the local development database
+    
+    ```bash
+    psql -U postgres
+    CREATE DATABASE softbee_local;
+    \q
+    ```
+  </Step>
+  
+  <Step title="Configure Environment">
+    Set the DATABASE_URL in your `.env` file
+    
+    ```bash
+    DATABASE_URL=postgresql://postgres:postgres@localhost:5432/softbee_local
+    ```
+  </Step>
+</Steps>
+
+### Docker Setup
+
+<CodeGroup>
+
+```yaml docker-compose.yml
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: softbee_local
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
+```
+
+```bash .env
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/softbee_local
+```
+
+</CodeGroup>
+
+### Production Setup with SSL
+
+For production deployments with SSL-enabled PostgreSQL:
+
+```bash
+DATABASE_URL=postgresql://user:password@db.example.com:5432/softbee_prod?sslmode=require
+```
+
+<Warning>
+  Always use SSL/TLS for production database connections, especially when connecting to remote databases.
+</Warning>
+
+## Connection Pooling
+
+For production environments with high traffic, consider using connection pooling:
+
+```python
+# The application automatically handles connection pooling
+# through SQLAlchemy's engine configuration
+```
+
+## Troubleshooting
+
+### Connection Refused
+
+<AccordionGroup>
+  <Accordion title="PostgreSQL not running">
+    Ensure PostgreSQL service is running:
+    
+    ```bash
+    # macOS
+    brew services start postgresql
+    
+    # Ubuntu/Debian
+    sudo systemctl start postgresql
+    
+    # Check status
+    pg_isready
+    ```
+  </Accordion>
+  
+  <Accordion title="Wrong credentials">
+    Verify your username and password are correct:
+    
+    ```bash
+    psql -U postgres -h localhost -d softbee_local
+    ```
+  </Accordion>
+  
+  <Accordion title="Database doesn't exist">
+    Create the database if it doesn't exist:
+    
+    ```bash
+    createdb -U postgres softbee_local
+    ```
+  </Accordion>
+  
+  <Accordion title="Port conflict">
+    Check if port 5432 is available or change the port in your configuration:
+    
+    ```bash
+    lsof -i :5432
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Best Practices
+
+<Check>
+  **Use separate databases per environment** to prevent data contamination
+</Check>
+
+<Check>
+  **Use environment variables** for production credentials, never hardcode
+</Check>
+
+<Check>
+  **Enable SSL/TLS** for all remote database connections
+</Check>
+
+<Check>
+  **Use strong passwords** for production database users
+</Check>
+
+<Check>
+  **Regular backups** of production databases
+</Check>
+
+<Check>
+  **Monitor connection pool** usage in production
+</Check>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Environment Configuration" icon="leaf" href="/configuration/environment">
+    Learn about environment-specific settings
+  </Card>
+  <Card title="JWT Configuration" icon="key" href="/configuration/jwt">
+    Configure authentication tokens
+  </Card>
+</CardGroup>

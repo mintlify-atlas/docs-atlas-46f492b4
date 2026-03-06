@@ -1,0 +1,303 @@
+---
+title: "Models"
+description: "SQLAlchemy database models for Soft-Bee API"
+---
+
+## Overview
+
+Models represent the database schema using SQLAlchemy ORM. They are infrastructure-layer concerns and should not be exposed to the domain layer.
+
+## Model Architecture
+
+Soft-Bee uses SQLAlchemy declarative models with the following characteristics:
+
+- **PostgreSQL-specific types**: UUID, JSON columns
+- **Automatic timestamps**: `created_at`, `updated_at` with defaults
+- **Indexing**: Strategic indexes on frequently queried fields
+- **Type safety**: Python type hints for better IDE support
+
+## User Model
+
+### Location
+
+`src/features/auth/infrastructure/models/user_model.py:7`
+
+### Complete Definition
+
+```python
+from datetime import datetime
+from sqlalchemy import Column, String, Boolean, DateTime, JSON, Integer
+from sqlalchemy.dialects.postgresql import UUID
+import uuid
+from src.core.database.db import db
+
+class UserModel(db.Model):
+    """Modelo SQLAlchemy para usuarios"""
+    __tablename__ = "users"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String(100), nullable=False)
+    username = Column(String(50), unique=True, nullable=False, index=True)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    password = Column(String(255), nullable=False)
+    is_verified = Column(Boolean, default=False)
+    last_login = Column(DateTime, nullable=True)
+    refresh_tokens = Column(JSON, default=list)
+    profile_image_url = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def __repr__(self):
+        return f"<User(id={self.id}, email={self.email}, username={self.username})>"
+```
+
+## Column Definitions
+
+### Primary Key
+
+```python
+id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+```
+
+- Uses PostgreSQL UUID type
+- `as_uuid=True` returns Python UUID objects instead of strings
+- Auto-generates UUID v4 on creation
+- No need for manual ID assignment
+
+### Unique Constraints with Indexes
+
+```python
+username = Column(String(50), unique=True, nullable=False, index=True)
+email = Column(String(255), unique=True, nullable=False, index=True)
+```
+
+- `unique=True` enforces uniqueness at database level
+- `index=True` creates B-tree index for fast lookups
+- `nullable=False` requires value on insert
+
+These fields are frequently used for queries, so indexing is critical.
+
+### JSON Storage
+
+```python
+refresh_tokens = Column(JSON, default=list)
+```
+
+- Stores array of refresh tokens as JSON
+- PostgreSQL native JSON type for efficient querying
+- Default factory returns empty list
+- Supports list operations (append, remove)
+
+### Timestamps
+
+```python
+created_at = Column(DateTime, default=datetime.utcnow)
+updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+```
+
+- `default=datetime.utcnow` sets timestamp on insert
+- `onupdate=datetime.utcnow` automatically updates on any modification
+- Always use UTC for consistency across timezones
+
+### Security Fields
+
+```python
+password = Column(String(255), nullable=False)
+is_verified = Column(Boolean, default=False)
+```
+
+- Password field stores hashed passwords (Argon2 or bcrypt)
+- Never store plain text passwords
+- `is_verified` tracks email verification status
+
+## Creating Tables
+
+### With Flask-Migrate (Alembic)
+
+```bash
+# Create migration
+flask db migrate -m "Add users table"
+
+# Apply migration
+flask db upgrade
+```
+
+### Programmatically
+
+```python
+from src.core.database.db import db
+
+# Create all tables
+db.create_all()
+```
+
+## Model Best Practices
+
+### Use Type Hints
+
+```python
+from typing import List, Optional
+
+class UserModel(db.Model):
+    username: str
+    email: str
+    refresh_tokens: List[str]
+```
+
+### Indexing Strategy
+
+Index columns used in:
+- WHERE clauses (filters)
+- JOIN conditions
+- ORDER BY clauses
+- UNIQUE constraints
+
+```python
+# Compound index for complex queries
+__table_args__ = (
+    Index('ix_user_email_verified', 'email', 'is_verified'),
+)
+```
+
+### Default Values
+
+```python
+# Server-side default (database)
+created_at = Column(DateTime, server_default=func.now())
+
+# Client-side default (Python)
+created_at = Column(DateTime, default=datetime.utcnow)
+```
+
+Use `server_default` for database-level defaults, `default` for application-level.
+
+### Nullable vs Required
+
+```python
+# Required field
+name = Column(String(100), nullable=False)
+
+# Optional field
+profile_image_url = Column(String(255), nullable=True)
+# or simply:
+profile_image_url = Column(String(255))  # nullable=True is default
+```
+
+## PostgreSQL-Specific Features
+
+### UUID Type
+
+```python
+from sqlalchemy.dialects.postgresql import UUID
+
+id = Column(UUID(as_uuid=True), primary_key=True)
+```
+
+Benefits:
+- 128-bit identifier (more compact than string)
+- Built-in PostgreSQL support
+- Globally unique without coordination
+
+### JSON/JSONB
+
+```python
+from sqlalchemy.dialects.postgresql import JSONB
+
+metadata = Column(JSONB)  # Binary JSON, more efficient
+metadata = Column(JSON)   # Text JSON, more compatible
+```
+
+JSONB allows:
+- Indexing JSON properties
+- JSON operators in queries
+- Faster query performance
+
+## Querying Models
+
+### Basic Queries
+
+```python
+# Get by primary key
+user = db.session.query(UserModel).filter_by(id=user_id).first()
+
+# Get by unique field
+user = db.session.query(UserModel).filter_by(email='user@example.com').first()
+
+# Check existence
+exists = db.session.query(
+    db.session.query(UserModel).filter_by(email=email).exists()
+).scalar()
+```
+
+### JSON Queries
+
+```python
+# Check if token in array
+from sqlalchemy.dialects.postgresql import ARRAY
+
+user = db.session.query(UserModel).filter(
+    UserModel.refresh_tokens.contains([token])
+).first()
+```
+
+## Migrations
+
+### Column Changes
+
+```python
+# In migration file
+def upgrade():
+    op.add_column('users', sa.Column('phone', sa.String(20), nullable=True))
+    op.create_index('ix_users_phone', 'users', ['phone'])
+
+def downgrade():
+    op.drop_index('ix_users_phone')
+    op.drop_column('users', 'phone')
+```
+
+### Data Migrations
+
+```python
+def upgrade():
+    # Update existing data
+    op.execute("""
+        UPDATE users 
+        SET is_verified = TRUE 
+        WHERE created_at < '2024-01-01'
+    """)
+```
+
+## Model-Entity Mapping
+
+Models should not be exposed to the domain layer. Use mappers:
+
+```python
+class UserMapper:
+    @staticmethod
+    def to_entity(model: UserModel) -> User:
+        """Convert model to domain entity"""
+        return User(
+            id=str(model.id),
+            name=model.name,
+            username=model.username,
+            email=Email(model.email),
+            # ...
+        )
+    
+    @staticmethod
+    def to_model(entity: User) -> UserModel:
+        """Convert domain entity to model"""
+        return UserModel(
+            id=UUID(entity.id) if entity.id else None,
+            name=entity.name,
+            username=entity.username,
+            email=entity.email.value,
+            # ...
+        )
+```
+
+## Related Documentation
+
+- [Repositories](/development/infrastructure/repositories) - Data access patterns
+- [Migrations](/development/migrations) - Database schema management
+- [Domain Entities](/development/domain/entities) - Domain layer objects

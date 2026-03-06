@@ -1,0 +1,332 @@
+---
+title: Development Setup
+description: Get your local development environment ready for the Soft-Bee API
+---
+
+This guide will walk you through setting up your local development environment for the Soft-Bee API project.
+
+## Prerequisites
+
+Before you begin, ensure you have the following installed:
+
+- **Python 3.10 or higher**
+- **PostgreSQL 12 or higher**
+- **Git**
+- **pip** (Python package manager)
+
+## Initial Setup
+
+<Steps>
+  <Step title="Clone the Repository">
+    Clone the project repository to your local machine:
+    
+    ```bash
+    git clone <repository-url>
+    cd soft-bee-api
+    ```
+  </Step>
+
+  <Step title="Run Initialization Script">
+    The project includes an automated setup script that handles most of the configuration:
+    
+    ```bash
+    ./init_project.sh
+    ```
+    
+    This script will:
+    - Verify Python installation
+    - Create the project directory structure
+    - Set up a virtual environment in `venv/`
+    - Install base dependencies from `requirements/base.txt`
+    - Optionally install development dependencies
+    - Configure pre-commit hooks (if `.pre-commit-config.yaml` exists)
+  </Step>
+
+  <Step title="Configure Environment Variables">
+    Create a `.env` file in the project root by copying the example file:
+    
+    ```bash
+    cp .env.example .env
+    ```
+    
+    Update the `.env` file with your local configuration:
+    
+    ```bash
+    # Environment
+    FLASK_ENV=local
+    
+    # Security
+    SECRET_KEY=your-secret-key-here
+    JWT_KEY=your-jwt-secret-key-here
+    ALGORITHM=HS256
+    EXPIRES_TOKEN_SESSION=1440
+    EXPIRES_TOKEN_EMAIL=30
+    
+    # Database
+    DATABASE_URL=postgresql://postgres:password@localhost:5432/softbee_local
+    
+    # Email (for development)
+    SMTP_HOST=smtp.gmail.com
+    SMTP_PORT=587
+    SMTP_USER=your-email@gmail.com
+    SMTP_PASSWORD=your-email-password
+    
+    # Application URLs
+    FRONTEND_URL=http://localhost:3000
+    BASE_URL=http://localhost:5000
+    ```
+  </Step>
+
+  <Step title="Set Up PostgreSQL Database">
+    Create a local PostgreSQL database:
+    
+    ```bash
+    # Connect to PostgreSQL
+    psql -U postgres
+    
+    # Create the database
+    CREATE DATABASE softbee_local;
+    
+    # Exit psql
+    \q
+    ```
+    
+    Alternatively, set the environment variables for PostgreSQL:
+    
+    ```bash
+    export PGUSER=postgres
+    export PGPASSWORD=postgres
+    export PGHOST=localhost
+    export PGPORT=5432
+    export PGDATABASE=softbee_local
+    ```
+  </Step>
+
+  <Step title="Activate Virtual Environment">
+    Activate the virtual environment created during initialization:
+    
+    ```bash
+    # On Linux/Mac
+    source venv/bin/activate
+    
+    # On Windows
+    venv\Scripts\activate
+    ```
+  </Step>
+
+  <Step title="Install Development Dependencies">
+    If you didn't install development dependencies during initialization, install them now:
+    
+    ```bash
+    pip install -r requirements/development.txt
+    ```
+    
+    This includes:
+    - `pytest` and `pytest-flask` for testing
+    - `black` for code formatting
+    - `mypy` for type checking
+    - `Flask-DebugToolbar` for debugging
+  </Step>
+
+  <Step title="Initialize Database">
+    The application will automatically create tables on first run if no migrations exist. To run the application:
+    
+    ```bash
+    flask run
+    ```
+    
+    The database initialization happens in `src/core/database/db.py:45-116` and creates all necessary tables.
+  </Step>
+</Steps>
+
+## Environment Configuration
+
+The project supports multiple environments through the `FLASK_ENV` variable:
+
+### Local Development
+
+```bash
+FLASK_ENV=local
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/softbee_local
+```
+
+**Configuration:** `config.py:41-51`
+
+- Debug mode enabled
+- Local PostgreSQL database
+- Relaxed security settings
+
+### Development Server
+
+```bash
+FLASK_ENV=development
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/softbee_dev
+```
+
+**Configuration:** `config.py:53-59`
+
+- Debug mode enabled
+- Development database
+- Similar to local but separate database
+
+### Testing
+
+```bash
+FLASK_ENV=testing
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/softbee_test
+```
+
+**Configuration:** `config.py:79-88`
+
+- Testing mode enabled
+- Separate test database
+- CSRF protection disabled
+
+### Production
+
+```bash
+FLASK_ENV=production
+DATABASE_URL=<production-database-url>
+```
+
+**Configuration:** `config.py:61-77`
+
+- Debug mode disabled
+- Requires all security variables
+- Validates critical configuration
+
+## Project Structure
+
+After setup, your project structure will look like this:
+
+```
+soft-bee-api/
+├── src/
+│   ├── core/              # Core infrastructure
+│   ├── features/          # Feature modules
+│   ├── shared/            # Shared utilities
+│   └── api/               # API routing
+├── tests/
+│   ├── unit/
+│   ├── integration/
+│   └── fixtures/
+├── requirements/
+│   ├── base.txt
+│   ├── development.txt
+│   ├── testing.txt
+│   └── production.txt
+├── venv/                  # Virtual environment
+├── logs/                  # Application logs
+├── .env                   # Environment variables
+├── app.py                 # Flask application factory
+├── config.py              # Configuration classes
+└── index.py               # Application entry point
+```
+
+## Verifying Your Setup
+
+<Steps>
+  <Step title="Check Dependencies">
+    Verify all dependencies are installed:
+    
+    ```bash
+    pip list
+    ```
+  </Step>
+
+  <Step title="Run the Application">
+    Start the Flask development server:
+    
+    ```bash
+    flask run
+    ```
+    
+    You should see output similar to:
+    
+    ```
+    🚀 Iniciando aplicación en entorno: local
+    ⚙️  Configuración activa: LocalConfig
+    📂 Usando base de datos: PostgreSQL
+    🔗 Servidor PostgreSQL: localhost:5432
+    🌐 URLs configuradas:
+       Frontend: http://localhost:3000
+       Backend: http://localhost:5000
+    🐛 Debug mode: True
+    ```
+  </Step>
+
+  <Step title="Test API Endpoints">
+    Check the health endpoint:
+    
+    ```bash
+    curl http://localhost:5000/api/v1/auth/health
+    ```
+    
+    Expected response:
+    
+    ```json
+    {
+      "status": "healthy",
+      "feature": "auth",
+      "version": "1.0.0",
+      "endpoints": [
+        "/api/v1/auth/login",
+        "/api/v1/auth/register",
+        "/api/v1/auth/logout",
+        "/api/v1/auth/verify"
+      ]
+    }
+    ```
+  </Step>
+</Steps>
+
+## Common Issues
+
+### Virtual Environment Not Activating
+
+**Solution:** Ensure you're using the correct activation command for your OS:
+
+- Linux/Mac: `source venv/bin/activate`
+- Windows: `venv\Scripts\activate`
+
+### PostgreSQL Connection Error
+
+**Solution:** Verify PostgreSQL is running and credentials are correct:
+
+```bash
+psql -U postgres -d softbee_local -h localhost
+```
+
+### Missing Dependencies
+
+**Solution:** Ensure you've installed the correct requirements file:
+
+```bash
+pip install -r requirements/base.txt
+pip install -r requirements/development.txt
+```
+
+### Port Already in Use
+
+**Solution:** Specify a different port:
+
+```bash
+flask run --port 5001
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Create Features" icon="plus" href="/development/creating-features">
+    Learn how to create new features using Clean Architecture
+  </Card>
+  <Card title="Testing" icon="flask" href="/development/testing">
+    Write and run tests for your code
+  </Card>
+  <Card title="Migrations" icon="database" href="/development/migrations">
+    Manage database migrations
+  </Card>
+  <Card title="Architecture" icon="layer-group" href="/architecture/overview">
+    Understand the Clean Architecture structure
+  </Card>
+</CardGroup>

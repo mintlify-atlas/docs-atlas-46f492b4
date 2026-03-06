@@ -1,0 +1,543 @@
+---
+title: Database Migrations
+description: Manage database schema changes with Flask-Migrate and Alembic
+---
+
+The Soft-Bee API uses Flask-Migrate (built on Alembic) to manage database schema changes. This ensures version-controlled, reproducible database migrations across all environments.
+
+## Migration Stack
+
+From `requirements/base.txt:7-11`:
+
+```txt
+SQLAlchemy==2.0.41         # ORM for database operations
+Flask-SQLAlchemy==3.1.1    # Flask integration for SQLAlchemy
+alembic==1.17.1            # Database migration tool
+Flask-Migrate==4.0.5       # Flask wrapper for Alembic
+psycopg2-binary==2.9.10    # PostgreSQL adapter
+```
+
+## Database Initialization
+
+The database is initialized in `src/core/database/db.py:45-116`:
+
+```python
+from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
+
+# Global instances
+db = SQLAlchemy()
+migrate = Migrate()
+
+def init_app(app):
+    """Initialize database with Flask application"""
+    
+    # Configure SQLAlchemy
+    app.config['SQLALCHEMY_DATABASE_URI'] = app.config.get('DATABASE_URL')
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    
+    # Initialize Flask-Migrate
+    db.init_app(app)
+    migrate.init_app(app, db)
+    
+    with app.app_context():
+        # Import models for Flask-Migrate to detect
+        from src.features.auth.infrastructure.models.user_model import UserModel
+        
+        # Auto-create tables if no migrations exist
+        migrations_dir = os.path.join(app.root_path, '..', 'migrations')
+        if not os.path.exists(migrations_dir):
+            print("No migrations found, creating tables automatically...")
+            db.create_all()
+        else:
+            print("Migrations found, use 'flask db upgrade' to apply changes")
+```
+
+## Setting Up Migrations
+
+<Steps>
+  <Step title="Initialize Migration Repository">
+    Create the migrations directory structure:
+    
+    ```bash
+    flask db init
+    ```
+    
+    This creates a `migrations/` directory with:
+    
+    ```
+    migrations/
+    ├── alembic.ini          # Alembic configuration
+    ├── env.py               # Migration environment
+    ├── script.py.mako       # Migration template
+    └── versions/            # Migration scripts
+    ```
+  </Step>
+
+  <Step title="Configure Database Connection">
+    Ensure your `.env` file has the correct database URL:
+    
+    ```bash
+    # Local development
+    DATABASE_URL=postgresql://postgres:password@localhost:5432/softbee_local
+    
+    # Testing
+    DATABASE_URL=postgresql://postgres:password@localhost:5432/softbee_test
+    
+    # Production
+    DATABASE_URL=postgresql://user:password@host:port/database
+    ```
+    
+    The configuration is loaded from `config.py:41-88` based on `FLASK_ENV`.
+  </Step>
+
+  <Step title="Import All Models">
+    Ensure all SQLAlchemy models are imported in `db.py` so Flask-Migrate can detect them:
+    
+    ```python
+    def init_app(app):
+        # ...
+        with app.app_context():
+            # Import all models here
+            from src.features.auth.infrastructure.models.user_model import UserModel
+            from src.features.apiary.infrastructure.models.apiary_model import ApiaryModel
+            # Import other models as you create them
+    ```
+  </Step>
+</Steps>
+
+## Creating Migrations
+
+### Generate Migration from Model Changes
+
+<Steps>
+  <Step title="Define Your SQLAlchemy Model">
+    Create a model in your feature's infrastructure layer:
+    
+    ```python
+    # src/features/apiary/infrastructure/models/apiary_model.py
+    from src.core.database.db import db
+    from datetime import datetime
+    
+    class ApiaryModel(db.Model):
+        __tablename__ = 'apiaries'
+        
+        id = db.Column(db.String(36), primary_key=True)
+        name = db.Column(db.String(100), nullable=False)
+        location = db.Column(db.String(200), nullable=False)
+        latitude = db.Column(db.Float, nullable=True)
+        longitude = db.Column(db.Float, nullable=True)
+        owner_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=False)
+        created_at = db.Column(db.DateTime, default=datetime.utcnow)
+        updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+        
+        # Relationships
+        owner = db.relationship('UserModel', back_populates='apiaries')
+        hives = db.relationship('HiveModel', back_populates='apiary', cascade='all, delete-orphan')
+    ```
+  </Step>
+
+  <Step title="Generate Migration Script">
+    Auto-generate a migration based on model changes:
+    
+    ```bash
+    flask db migrate -m "Add apiary model"
+    ```
+    
+    This creates a new file in `migrations/versions/` with:
+    - Timestamp prefix
+    - Your message as the description
+    - Auto-detected schema changes
+    
+    Example: `migrations/versions/abc123_add_apiary_model.py`
+  </Step>
+
+  <Step title="Review the Migration">
+    Always review the generated migration before applying:
+    
+    ```python
+    # migrations/versions/abc123_add_apiary_model.py
+    """Add apiary model
+    
+    Revision ID: abc123
+    Revises: xyz789
+    Create Date: 2024-03-06 10:30:00.000000
+    """
+    from alembic import op
+    import sqlalchemy as sa
+    
+    def upgrade():
+        # Create table
+        op.create_table(
+            'apiaries',
+            sa.Column('id', sa.String(36), nullable=False),
+            sa.Column('name', sa.String(100), nullable=False),
+            sa.Column('location', sa.String(200), nullable=False),
+            sa.Column('latitude', sa.Float(), nullable=True),
+            sa.Column('longitude', sa.Float(), nullable=True),
+            sa.Column('owner_id', sa.String(36), nullable=False),
+            sa.Column('created_at', sa.DateTime(), nullable=True),
+            sa.Column('updated_at', sa.DateTime(), nullable=True),
+            sa.PrimaryKeyConstraint('id'),
+            sa.ForeignKeyConstraint(['owner_id'], ['users.id'])
+        )
+    
+    def downgrade():
+        # Drop table
+        op.drop_table('apiaries')
+    ```
+  </Step>
+
+  <Step title="Apply the Migration">
+    Apply the migration to your database:
+    
+    ```bash
+    flask db upgrade
+    ```
+    
+    This executes the `upgrade()` function in the migration script.
+  </Step>
+</Steps>
+
+## Migration Commands
+
+### Common Operations
+
+<CodeGroup>
+```bash Initialize
+# Create migrations directory (first time only)
+flask db init
+```
+
+```bash Generate Migration
+# Auto-generate migration from model changes
+flask db migrate -m "Description of changes"
+```
+
+```bash Apply Migrations
+# Apply all pending migrations
+flask db upgrade
+
+# Upgrade to specific revision
+flask db upgrade abc123
+
+# Upgrade by relative steps
+flask db upgrade +2
+```
+
+```bash Rollback Migrations
+# Rollback one migration
+flask db downgrade
+
+# Rollback to specific revision
+flask db downgrade abc123
+
+# Rollback by relative steps
+flask db downgrade -1
+```
+
+```bash Migration History
+# Show current migration status
+flask db current
+
+# Show migration history
+flask db history
+
+# Show pending migrations
+flask db heads
+```
+
+```bash Merge Migrations
+# Merge multiple heads (if branches exist)
+flask db merge -m "Merge branches"
+```
+</CodeGroup>
+
+## Writing Custom Migrations
+
+Sometimes you need to write custom migrations for data migrations or complex schema changes.
+
+### Create Empty Migration
+
+```bash
+flask db revision -m "Custom data migration"
+```
+
+### Example: Data Migration
+
+```python
+# migrations/versions/def456_migrate_user_roles.py
+"""Migrate user roles to new format
+
+Revision ID: def456
+Revises: abc123
+Create Date: 2024-03-06 11:00:00.000000
+"""
+from alembic import op
+import sqlalchemy as sa
+from sqlalchemy.sql import table, column
+
+def upgrade():
+    # Add new role column
+    op.add_column('users', sa.Column('role', sa.String(20), nullable=True))
+    
+    # Create a pseudo-table for data migration
+    users = table('users',
+        column('id', sa.String),
+        column('is_admin', sa.Boolean),
+        column('role', sa.String)
+    )
+    
+    # Migrate data
+    op.execute(
+        users.update()
+        .where(users.c.is_admin == True)
+        .values(role='admin')
+    )
+    
+    op.execute(
+        users.update()
+        .where(users.c.is_admin == False)
+        .values(role='user')
+    )
+    
+    # Make column non-nullable after populating
+    op.alter_column('users', 'role', nullable=False)
+    
+    # Drop old column
+    op.drop_column('users', 'is_admin')
+
+def downgrade():
+    # Reverse the migration
+    op.add_column('users', sa.Column('is_admin', sa.Boolean(), nullable=True))
+    
+    users = table('users',
+        column('id', sa.String),
+        column('is_admin', sa.Boolean),
+        column('role', sa.String)
+    )
+    
+    op.execute(
+        users.update()
+        .where(users.c.role == 'admin')
+        .values(is_admin=True)
+    )
+    
+    op.execute(
+        users.update()
+        .where(users.c.role == 'user')
+        .values(is_admin=False)
+    )
+    
+    op.drop_column('users', 'role')
+```
+
+## Migration Best Practices
+
+<AccordionGroup>
+  <Accordion title="Always Review Generated Migrations">
+    Auto-generated migrations may not always be perfect:
+    
+    - Check for unintended changes
+    - Verify foreign key constraints
+    - Ensure indexes are created
+    - Add custom logic if needed
+  </Accordion>
+
+  <Accordion title="Write Reversible Migrations">
+    Always implement both `upgrade()` and `downgrade()`:
+    
+    ```python
+    def upgrade():
+        op.add_column('users', sa.Column('phone', sa.String(20)))
+    
+    def downgrade():
+        op.drop_column('users', 'phone')
+    ```
+  </Accordion>
+
+  <Accordion title="Use Descriptive Messages">
+    Migration messages should be clear and specific:
+    
+    ```bash
+    # Good
+    flask db migrate -m "Add email verification fields to user model"
+    flask db migrate -m "Create apiary and hive relationship tables"
+    
+    # Bad
+    flask db migrate -m "Update database"
+    flask db migrate -m "Changes"
+    ```
+  </Accordion>
+
+  <Accordion title="Test Migrations Both Ways">
+    Test both upgrade and downgrade:
+    
+    ```bash
+    # Apply migration
+    flask db upgrade
+    
+    # Verify database state
+    # ...
+    
+    # Rollback migration
+    flask db downgrade
+    
+    # Verify rollback worked
+    # ...
+    
+    # Apply again
+    flask db upgrade
+    ```
+  </Accordion>
+
+  <Accordion title="Handle Data During Schema Changes">
+    When modifying columns, preserve existing data:
+    
+    ```python
+    def upgrade():
+        # Add new column as nullable first
+        op.add_column('users', sa.Column('full_name', sa.String(200), nullable=True))
+        
+        # Populate with existing data
+        op.execute("UPDATE users SET full_name = first_name || ' ' || last_name")
+        
+        # Make it non-nullable
+        op.alter_column('users', 'full_name', nullable=False)
+    ```
+  </Accordion>
+
+  <Accordion title="Use Batch Operations for Large Tables">
+    For tables with many rows, use batch operations:
+    
+    ```python
+    def upgrade():
+        with op.batch_alter_table('large_table') as batch_op:
+            batch_op.add_column(sa.Column('new_field', sa.String(50)))
+            batch_op.create_index('ix_large_table_new_field', ['new_field'])
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Migration Environments
+
+### Local Development
+
+```bash
+# Set environment
+export FLASK_ENV=local
+
+# Apply migrations
+flask db upgrade
+```
+
+### Testing
+
+```bash
+# Use test database
+export FLASK_ENV=testing
+
+# Apply migrations before tests
+flask db upgrade
+
+# Run tests
+pytest
+
+# Clean up (optional)
+flask db downgrade base
+```
+
+### Production
+
+```bash
+# Set production environment
+export FLASK_ENV=production
+
+# Backup database first!
+pg_dump -U user -d database > backup_$(date +%Y%m%d).sql
+
+# Apply migrations
+flask db upgrade
+
+# Verify application works
+curl https://api.example.com/health
+```
+
+<Warning>
+Always backup your production database before running migrations!
+</Warning>
+
+## Troubleshooting
+
+### Migration Conflicts
+
+If you have multiple migration heads (branches):
+
+```bash
+# Check for multiple heads
+flask db heads
+
+# Merge the branches
+flask db merge heads -m "Merge migration branches"
+
+# Apply the merge
+flask db upgrade
+```
+
+### Reset Migrations (Development Only)
+
+<Warning>
+Only do this in development! Never in production!
+</Warning>
+
+```bash
+# Drop all tables
+flask db downgrade base
+
+# Or manually
+psql -U postgres -d softbee_local
+DROP SCHEMA public CASCADE;
+CREATE SCHEMA public;
+\q
+
+# Recreate from scratch
+flask db upgrade
+```
+
+### Failed Migration
+
+If a migration fails midway:
+
+```bash
+# Check current state
+flask db current
+
+# Manual fix might be needed
+psql -U postgres -d your_database
+# Fix the issue manually
+
+# Mark migration as complete (if you fixed it manually)
+flask db stamp head
+
+# Or rollback and fix the migration script
+flask db downgrade
+# Edit the migration file
+flask db upgrade
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Database Models" icon="database" href="/development/infrastructure/models">
+    Learn about SQLAlchemy models
+  </Card>
+  <Card title="Testing" icon="flask" href="/development/testing">
+    Test your migrations
+  </Card>
+  <Card title="Configuration" icon="rocket" href="/configuration/database">
+    Configure database settings
+  </Card>
+  <Card title="Repositories" icon="box" href="/development/infrastructure/repositories">
+    Implement repository pattern
+  </Card>
+</CardGroup>

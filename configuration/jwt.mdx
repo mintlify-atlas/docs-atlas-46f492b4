@@ -1,0 +1,400 @@
+---
+title: JWT Configuration
+description: Configure JWT authentication and token management for the Soft-Bee API
+icon: key
+---
+
+## Overview
+
+The Soft-Bee API uses JSON Web Tokens (JWT) for authentication and authorization. JWT configuration controls token generation, validation, and expiration.
+
+<Note>
+  The API uses two types of tokens: **access tokens** for API authentication and **reset tokens** for password reset flows.
+</Note>
+
+## JWT Environment Variables
+
+### Secret Key
+
+<ParamField path="JWT_KEY" type="string" required>
+  Secret key used to sign and verify JWT tokens
+  
+  <Warning>
+    This key must be kept secret and should be different from your Flask `SECRET_KEY`. In production, this variable is required.
+  </Warning>
+</ParamField>
+
+```bash
+JWT_KEY=your-jwt-secret-key-here
+```
+
+**Default Value:** `secret-key-default` (development only)
+
+<Warning>
+  Never use the default JWT key in production. Generate a secure random key using a cryptographically secure method.
+</Warning>
+
+### Algorithm
+
+<ParamField path="ALGORITHM" type="string" default="HS256">
+  Algorithm used for signing JWT tokens
+  
+  Supported algorithms:
+  - `HS256` (HMAC with SHA-256) - Recommended for most use cases
+  - `HS384` (HMAC with SHA-384)
+  - `HS512` (HMAC with SHA-512)
+  - `RS256` (RSA with SHA-256) - Requires public/private key pair
+</ParamField>
+
+```bash
+ALGORITHM=HS256
+```
+
+**Default Value:** `HS256`
+
+### Access Token Expiration
+
+<ParamField path="EXPIRES_TOKEN_SESSION" type="number" default="1440">
+  Expiration time for access tokens in minutes
+  
+  Default: `1440` minutes (24 hours)
+</ParamField>
+
+```bash
+EXPIRES_TOKEN_SESSION=1440
+```
+
+**Common Values:**
+- `15` - 15 minutes (high security)
+- `60` - 1 hour (balanced)
+- `1440` - 24 hours (default, user convenience)
+- `10080` - 7 days (long-lived sessions)
+
+<Note>
+  Shorter expiration times are more secure but require users to log in more frequently. Balance security with user experience.
+</Note>
+
+### Reset Token Expiration
+
+<ParamField path="EXPIRES_TOKEN_EMAIL" type="number" default="30">
+  Expiration time for password reset tokens in minutes
+  
+  Default: `30` minutes
+</ParamField>
+
+```bash
+EXPIRES_TOKEN_EMAIL=30
+```
+
+**Common Values:**
+- `15` - 15 minutes (high security)
+- `30` - 30 minutes (default, balanced)
+- `60` - 1 hour (user convenience)
+
+<Warning>
+  Reset tokens should have shorter expiration times than access tokens for security. The default of 30 minutes is recommended.
+</Warning>
+
+## Configuration in Code
+
+The JWT configuration is loaded from environment variables in `config.py`:
+
+```python config.py
+class Config:
+    # JWT Configuration
+    JWT_SECRET_KEY = os.getenv("JWT_KEY", "secret-key-default")
+    JWT_ALGORITHM = os.getenv("ALGORITHM", "HS256")
+    JWT_ACCESS_TOKEN_EXPIRES = int(os.getenv("EXPIRES_TOKEN_SESSION", 1440))  # 24 hours
+    JWT_RESET_TOKEN_EXPIRES = int(os.getenv("EXPIRES_TOKEN_EMAIL", 30))  # 30 minutes
+```
+
+## Environment-Specific Examples
+
+<CodeGroup>
+
+```bash Local Development
+# .env.local
+JWT_KEY=dev-jwt-secret-key-local
+ALGORITHM=HS256
+EXPIRES_TOKEN_SESSION=1440
+EXPIRES_TOKEN_EMAIL=30
+```
+
+```bash Development Server
+# .env.development
+JWT_KEY=dev-jwt-secret-key-shared
+ALGORITHM=HS256
+EXPIRES_TOKEN_SESSION=1440
+EXPIRES_TOKEN_EMAIL=30
+```
+
+```bash Production
+# .env.production or environment variables
+JWT_KEY=<generated-secure-random-key>
+ALGORITHM=HS256
+EXPIRES_TOKEN_SESSION=60
+EXPIRES_TOKEN_EMAIL=15
+```
+
+```bash Testing
+# .env.testing
+JWT_KEY=test-jwt-key
+ALGORITHM=HS256
+EXPIRES_TOKEN_SESSION=1440
+EXPIRES_TOKEN_EMAIL=30
+```
+
+</CodeGroup>
+
+## Generating Secure Keys
+
+For production deployments, generate cryptographically secure JWT keys:
+
+### Using OpenSSL
+
+```bash
+# Generate a 256-bit (32-byte) random key
+openssl rand -hex 32
+```
+
+### Using Python
+
+```python
+import secrets
+
+# Generate a secure random key
+jwt_key = secrets.token_hex(32)
+print(f"JWT_KEY={jwt_key}")
+```
+
+### Using Node.js
+
+```javascript
+const crypto = require('crypto');
+
+// Generate a secure random key
+const jwtKey = crypto.randomBytes(32).toString('hex');
+console.log(`JWT_KEY=${jwtKey}`);
+```
+
+<Warning>
+  Store generated keys securely. Never commit JWT keys to version control. Use environment variables or secret management systems.
+</Warning>
+
+## Token Types
+
+### Access Tokens (Session Tokens)
+
+**Purpose:** Used for authenticating API requests
+
+**Expiration:** Controlled by `EXPIRES_TOKEN_SESSION` (default: 24 hours)
+
+**Usage:**
+- Included in `Authorization` header as `Bearer {token}`
+- Used for all authenticated API endpoints
+- Returned upon successful login
+
+**Example:**
+```bash
+curl -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  https://api.softbee.com/apiaries
+```
+
+### Reset Tokens (Email Tokens)
+
+**Purpose:** Used for password reset flows
+
+**Expiration:** Controlled by `EXPIRES_TOKEN_EMAIL` (default: 30 minutes)
+
+**Usage:**
+- Sent via email for password reset
+- One-time use only
+- Shorter expiration for security
+
+**Example:**
+```bash
+Reset link: https://app.softbee.com/reset-password?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+## Production Validation
+
+In production mode, the application validates that critical JWT configuration is present:
+
+```python config.py
+class ProductionConfig(Config):
+    # Validate that JWT_KEY exists in production
+    if not os.getenv("JWT_KEY"):
+        raise ValueError("JWT_KEY is required in production")
+```
+
+<Warning>
+  The application will fail to start in production if `JWT_KEY` is not set. This prevents accidentally using insecure default values.
+</Warning>
+
+## Security Best Practices
+
+<Check>
+  **Use strong, random keys** - Generate keys using cryptographically secure methods
+</Check>
+
+<Check>
+  **Different keys per environment** - Use unique JWT keys for each environment
+</Check>
+
+<Check>
+  **Separate from SECRET_KEY** - JWT_KEY should be different from Flask's SECRET_KEY
+</Check>
+
+<Check>
+  **Shorter expiration in production** - Consider shorter token lifetimes for production
+</Check>
+
+<Check>
+  **Secure key storage** - Use environment variables or secret managers, never hardcode
+</Check>
+
+<Check>
+  **Rotate keys periodically** - Implement key rotation for long-running production systems
+</Check>
+
+<Check>
+  **Use HTTPS only** - Always transmit tokens over encrypted connections
+</Check>
+
+## Token Expiration Recommendations
+
+### Access Tokens
+
+<CardGroup cols={3}>
+  <Card title="High Security" icon="shield">
+    **15-60 minutes**
+    
+    Best for: Financial apps, healthcare, sensitive data
+  </Card>
+  
+  <Card title="Balanced" icon="scale-balanced">
+    **1-24 hours**
+    
+    Best for: Most web applications (default)
+  </Card>
+  
+  <Card title="User Convenience" icon="user">
+    **7-30 days**
+    
+    Best for: Mobile apps, trusted devices
+  </Card>
+</CardGroup>
+
+### Reset Tokens
+
+<CardGroup cols={3}>
+  <Card title="High Security" icon="shield">
+    **10-15 minutes**
+    
+    Short window, forces quick action
+  </Card>
+  
+  <Card title="Balanced" icon="scale-balanced">
+    **30 minutes**
+    
+    Recommended default setting
+  </Card>
+  
+  <Card title="User Convenience" icon="user">
+    **1-2 hours**
+    
+    More time for users to reset
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Token Expired Error">
+    **Cause:** The access token has exceeded its expiration time.
+    
+    **Solution:**
+    - Request a new token by logging in again
+    - Consider increasing `EXPIRES_TOKEN_SESSION` for better UX
+    - Implement token refresh mechanism
+  </Accordion>
+  
+  <Accordion title="Invalid Token Error">
+    **Cause:** Token signature verification failed.
+    
+    **Solutions:**
+    - Ensure `JWT_KEY` is the same across all app instances
+    - Check that the token hasn't been tampered with
+    - Verify the algorithm matches (`ALGORITHM`)
+  </Accordion>
+  
+  <Accordion title="Production Startup Failure">
+    **Cause:** Missing `JWT_KEY` in production environment.
+    
+    **Solution:**
+    ```bash
+    export JWT_KEY=$(openssl rand -hex 32)
+    ```
+  </Accordion>
+  
+  <Accordion title="Token Not Working After Key Change">
+    **Cause:** Existing tokens were signed with old key.
+    
+    **Solution:**
+    - All users must log in again to get new tokens
+    - This is expected behavior when rotating keys
+    - Consider implementing graceful key rotation
+  </Accordion>
+</AccordionGroup>
+
+## Integration Example
+
+Here's how to use JWT tokens with the API:
+
+<Steps>
+  <Step title="Login to get token">
+    ```bash
+    curl -X POST https://api.softbee.com/auth/login \
+      -H "Content-Type: application/json" \
+      -d '{"email":"user@example.com","password":"password"}'
+    ```
+    
+    Response:
+    ```json
+    {
+      "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "token_type": "Bearer"
+    }
+    ```
+  </Step>
+  
+  <Step title="Use token in requests">
+    ```bash
+    curl -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+      https://api.softbee.com/apiaries
+    ```
+  </Step>
+  
+  <Step title="Handle expiration">
+    When token expires, the API returns:
+    ```json
+    {
+      "error": "Token has expired",
+      "status": 401
+    }
+    ```
+    
+    Client should redirect to login or refresh the token.
+  </Step>
+</Steps>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Environment Configuration" icon="leaf" href="/configuration/environment">
+    Configure different environments
+  </Card>
+  <Card title="Database Configuration" icon="database" href="/configuration/database">
+    Set up database connections
+  </Card>
+</CardGroup>

@@ -1,0 +1,749 @@
+---
+title: 'Installation'
+description: 'Complete installation guide for Soft-Bee API'
+icon: 'download'
+---
+
+This guide covers everything you need to install and configure the Soft-Bee API for development or production use.
+
+## System Requirements
+
+<CardGroup cols={3}>
+  <Card title="Python" icon="python">
+    **Version:** 3.10 or higher
+    
+    Required for running the Flask application
+  </Card>
+  <Card title="PostgreSQL" icon="database">
+    **Version:** 12 or higher
+    
+    Primary database for all environments
+  </Card>
+  <Card title="pip" icon="box">
+    **Version:** Latest
+    
+    Python package manager
+  </Card>
+</CardGroup>
+
+## Installation Methods
+
+<Tabs>
+  <Tab title="Automated Setup (Recommended)">
+    ### Using the Initialization Script
+    
+    The easiest way to get started is using the provided `init_project.sh` script:
+    
+    <Steps>
+      <Step title="Download the Script">
+        Ensure you have the `init_project.sh` file in your project root:
+        
+        ```bash
+        ls -la init_project.sh
+        chmod +x init_project.sh
+        ```
+      </Step>
+      
+      <Step title="Run the Script">
+        Execute the initialization script:
+        
+        ```bash
+        ./init_project.sh
+        ```
+        
+        The script will:
+        - Verify Python installation
+        - Create project directory structure
+        - Set up a virtual environment
+        - Install base dependencies
+        - Optionally install development dependencies
+      </Step>
+      
+      <Step title="Respond to Prompts">
+        When asked:
+        
+        ```
+        ¿Instalar dependencias de desarrollo también? (s/n):
+        ```
+        
+        - Type `s` or `y` for development setup (includes testing, linting tools)
+        - Type `n` for minimal production setup
+      </Step>
+    </Steps>
+    
+    <Note>
+      The script is designed for Linux/Mac. Windows users should follow the Manual Setup instructions below.
+    </Note>
+  </Tab>
+  
+  <Tab title="Manual Setup">
+    ### Step-by-Step Manual Installation
+    
+    <Steps>
+      <Step title="Verify Python Installation">
+        Check that Python 3.10+ is installed:
+        
+        ```bash
+        python3 --version
+        # Should output: Python 3.10.x or higher
+        ```
+        
+        If not installed, download from [python.org](https://www.python.org/downloads/)
+      </Step>
+      
+      <Step title="Create Virtual Environment">
+        Create an isolated Python environment:
+        
+        **Linux/Mac:**
+        ```bash
+        python3 -m venv venv
+        source venv/bin/activate
+        ```
+        
+        **Windows:**
+        ```bash
+        python -m venv venv
+        venv\Scripts\activate
+        ```
+        
+        Your prompt should now show `(venv)` prefix.
+      </Step>
+      
+      <Step title="Upgrade pip">
+        Ensure you have the latest pip version:
+        
+        ```bash
+        pip install --upgrade pip
+        ```
+      </Step>
+      
+      <Step title="Install Dependencies">
+        Install based on your environment needs:
+        
+        <CodeGroup>
+        ```bash Production
+        # Base + Production dependencies
+        pip install -r requirements/base.txt
+        pip install -r requirements/production.txt
+        ```
+        
+        ```bash Development
+        # Base + Development dependencies
+        pip install -r requirements/base.txt
+        pip install -r requirements/development.txt
+        ```
+        
+        ```bash Testing
+        # Base + Testing dependencies
+        pip install -r requirements/base.txt
+        pip install -r requirements/testing.txt
+        ```
+        </CodeGroup>
+      </Step>
+    </Steps>
+  </Tab>
+</Tabs>
+
+## Dependencies Overview
+
+The project uses a modular requirements structure for different environments:
+
+### Base Dependencies (`requirements/base.txt`)
+
+Core dependencies required for all environments:
+
+<AccordionGroup>
+  <Accordion title="Web Framework" icon="globe">
+    ```txt
+    Flask==3.1.1
+    Werkzeug==3.1.3
+    Flask-CORS==5.0.1
+    Flask-Login==0.6.3
+    Flask-Talisman==1.1.0
+    ```
+    
+    Flask and essential extensions for building the REST API.
+  </Accordion>
+  
+  <Accordion title="Database & ORM" icon="database">
+    ```txt
+    SQLAlchemy==2.0.41
+    Flask-SQLAlchemy==3.1.1
+    alembic==1.17.1
+    Flask-Migrate==4.0.5
+    psycopg2-binary==2.9.10
+    ```
+    
+    Database connectivity, ORM, and migration tools for PostgreSQL.
+  </Accordion>
+  
+  <Accordion title="Security & Authentication" icon="shield">
+    ```txt
+    argon2-cffi==23.1.0
+    bcrypt==4.3.0
+    python-jose[cryptography]==3.3.0
+    ```
+    
+    Password hashing (Argon2, bcrypt) and JWT token handling.
+  </Accordion>
+  
+  <Accordion title="Validation & Serialization" icon="check">
+    ```txt
+    pydantic==2.11.5
+    email-validator==2.2.0
+    ```
+    
+    Request/response validation and email format checking.
+  </Accordion>
+  
+  <Accordion title="Dependency Injection" icon="plug">
+    ```txt
+    dependency-injector==4.48.3
+    ```
+    
+    IoC container for Clean Architecture implementation.
+  </Accordion>
+  
+  <Accordion title="Email" icon="envelope">
+    ```txt
+    Flask-Mail==0.10.0
+    ```
+    
+    Email sending functionality for verification and notifications.
+  </Accordion>
+  
+  <Accordion title="Utilities" icon="wrench">
+    ```txt
+    python-dotenv==1.1.0
+    requests==2.32.3
+    orjson==3.10.18
+    cachetools==5.5.2
+    ```
+    
+    Environment variables, HTTP client, fast JSON, and caching.
+  </Accordion>
+</AccordionGroup>
+
+### Development Dependencies (`requirements/development.txt`)
+
+Additional tools for development:
+
+```txt
+pytest==8.3.4              # Testing framework
+pytest-flask==1.3.0        # Flask testing utilities
+Flask-DebugToolbar==0.14.1 # Debug toolbar for development
+black==24.10.0             # Code formatter
+mypy==1.14.0               # Static type checker
+```
+
+## Database Setup
+
+### PostgreSQL Installation
+
+<Tabs>
+  <Tab title="macOS">
+    Using Homebrew:
+    
+    ```bash
+    brew install postgresql@14
+    brew services start postgresql@14
+    ```
+  </Tab>
+  
+  <Tab title="Ubuntu/Debian">
+    Using apt:
+    
+    ```bash
+    sudo apt update
+    sudo apt install postgresql postgresql-contrib
+    sudo systemctl start postgresql
+    sudo systemctl enable postgresql
+    ```
+  </Tab>
+  
+  <Tab title="Windows">
+    1. Download the installer from [postgresql.org](https://www.postgresql.org/download/windows/)
+    2. Run the installer and follow the setup wizard
+    3. Remember the password you set for the `postgres` user
+  </Tab>
+  
+  <Tab title="Docker">
+    Using Docker Compose:
+    
+    ```yaml docker-compose.yml
+    version: '3.8'
+    services:
+      postgres:
+        image: postgres:14
+        environment:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: softbee_local
+        ports:
+          - "5432:5432"
+        volumes:
+          - postgres_data:/var/lib/postgresql/data
+    
+    volumes:
+      postgres_data:
+    ```
+    
+    Start the database:
+    ```bash
+    docker-compose up -d
+    ```
+  </Tab>
+</Tabs>
+
+### Create Database
+
+Create the database for your environment:
+
+```bash
+# Connect to PostgreSQL
+psql -U postgres
+
+# Create database
+CREATE DATABASE softbee_local;
+
+# Create user (optional)
+CREATE USER softbee_user WITH PASSWORD 'your_password';
+GRANT ALL PRIVILEGES ON DATABASE softbee_local TO softbee_user;
+
+# Exit
+\q
+```
+
+<Note>
+  For different environments, create separate databases:
+  - `softbee_local` - Local development
+  - `softbee_dev` - Development server
+  - `softbee_test` - Testing
+  - `softbee_prod` - Production
+</Note>
+
+## Environment Configuration
+
+### Create Environment File
+
+Copy the example file and configure:
+
+```bash
+cp .env.example .env
+```
+
+### Configuration Options
+
+<ParamField path="FLASK_ENV" type="string" default="local">
+  Environment mode: `local`, `development`, `production`, or `testing`
+</ParamField>
+
+<ParamField path="SECRET_KEY" type="string" required>
+  Flask secret key for session management
+  
+  **Generate a secure key:**
+  ```bash
+  python -c "import secrets; print(secrets.token_hex(32))"
+  ```
+</ParamField>
+
+<ParamField path="JWT_KEY" type="string" required>
+  Secret key for JWT token signing
+  
+  **Generate a secure key:**
+  ```bash
+  python -c "import secrets; print(secrets.token_hex(32))"
+  ```
+</ParamField>
+
+<ParamField path="DATABASE_URL" type="string" required>
+  PostgreSQL connection string
+  
+  **Format:**
+  ```
+  postgresql://username:password@host:port/database
+  ```
+  
+  **Example:**
+  ```
+  postgresql://postgres:postgres@localhost:5432/softbee_local
+  ```
+</ParamField>
+
+<ParamField path="ALGORITHM" type="string" default="HS256">
+  JWT signing algorithm
+</ParamField>
+
+<ParamField path="EXPIRES_TOKEN_SESSION" type="integer" default="1440">
+  Access token expiration in minutes (default: 24 hours)
+</ParamField>
+
+<ParamField path="EXPIRES_TOKEN_EMAIL" type="integer" default="30">
+  Email verification token expiration in minutes
+</ParamField>
+
+<ParamField path="SMTP_HOST" type="string">
+  SMTP server hostname (e.g., `smtp.gmail.com`)
+</ParamField>
+
+<ParamField path="SMTP_PORT" type="integer" default="587">
+  SMTP server port
+</ParamField>
+
+<ParamField path="SMTP_USER" type="string">
+  SMTP username/email for sending emails
+</ParamField>
+
+<ParamField path="SMTP_PASSWORD" type="string">
+  SMTP password or app-specific password
+</ParamField>
+
+<ParamField path="FRONTEND_URL" type="string" default="http://localhost:3000">
+  Frontend application URL for CORS and email links
+</ParamField>
+
+<ParamField path="BASE_URL" type="string" default="http://localhost:5000">
+  Backend API base URL
+</ParamField>
+
+### Example Configuration
+
+<CodeGroup>
+```bash Local Development
+FLASK_ENV=local
+SECRET_KEY=dev-secret-key-change-me
+JWT_KEY=dev-jwt-key-change-me
+ALGORITHM=HS256
+EXPIRES_TOKEN_SESSION=1440
+EXPIRES_TOKEN_EMAIL=30
+
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/softbee_local
+
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASSWORD=your-app-password
+
+FRONTEND_URL=http://localhost:3000
+BASE_URL=http://localhost:5000
+```
+
+```bash Production
+FLASK_ENV=production
+SECRET_KEY=<generate-secure-key>
+JWT_KEY=<generate-secure-key>
+ALGORITHM=HS256
+EXPIRES_TOKEN_SESSION=1440
+EXPIRES_TOKEN_EMAIL=30
+
+DATABASE_URL=postgresql://user:pass@prod-server:5432/softbee_prod
+
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=notifications@yourdomain.com
+SMTP_PASSWORD=<secure-app-password>
+
+FRONTEND_URL=https://app.yourdomain.com
+BASE_URL=https://api.yourdomain.com
+```
+</CodeGroup>
+
+<Warning>
+  Never commit your `.env` file to version control! It contains sensitive credentials.
+  The `.gitignore` file should already exclude it.
+</Warning>
+
+## Database Migrations
+
+### Initialize Migrations
+
+Set up Flask-Migrate for database versioning:
+
+```bash
+# Activate virtual environment
+source venv/bin/activate  # Windows: venv\Scripts\activate
+
+# Initialize migration directory (first time only)
+flask db init
+```
+
+This creates a `migrations/` directory to track database changes.
+
+### Create and Apply Migrations
+
+<Steps>
+  <Step title="Generate Migration">
+    Create a migration script from model changes:
+    
+    ```bash
+    flask db migrate -m "Initial migration"
+    ```
+    
+    This analyzes your SQLAlchemy models and generates migration scripts.
+  </Step>
+  
+  <Step title="Review Migration">
+    Check the generated migration file in `migrations/versions/`:
+    
+    ```bash
+    ls migrations/versions/
+    ```
+    
+    Review the `upgrade()` and `downgrade()` functions to ensure correctness.
+  </Step>
+  
+  <Step title="Apply Migration">
+    Apply the migration to your database:
+    
+    ```bash
+    flask db upgrade
+    ```
+    
+    This executes the SQL commands to update your database schema.
+  </Step>
+</Steps>
+
+### Common Migration Commands
+
+```bash
+# Show current migration status
+flask db current
+
+# Show migration history
+flask db history
+
+# Upgrade to latest
+flask db upgrade
+
+# Upgrade to specific version
+flask db upgrade <revision>
+
+# Downgrade one version
+flask db downgrade
+
+# Downgrade to specific version
+flask db downgrade <revision>
+```
+
+## Verify Installation
+
+### Run the Application
+
+Start the development server:
+
+```bash
+# Make sure virtual environment is activated
+source venv/bin/activate
+
+# Start Flask
+flask run
+```
+
+You should see:
+
+```
+🚀 Iniciando aplicación en entorno: local
+⚙️  Configuración activa: LocalConfig
+📂 Usando base de datos: PostgreSQL
+🔗 Servidor PostgreSQL: localhost:5432
+🌐 URLs configuradas:
+   Frontend: http://localhost:3000
+   Backend: http://localhost:5000
+🐛 Debug mode: True
+
+==================================================
+📋 Rutas registradas:
+  {'POST', 'OPTIONS'} /api/v1/auth/login
+  {'POST', 'OPTIONS'} /api/v1/auth/register
+  {'GET', 'OPTIONS', 'HEAD'} /api/v1/auth/health
+==================================================
+
+ * Running on http://127.0.0.1:5000
+```
+
+### Test the API
+
+Verify the installation with a health check:
+
+```bash
+curl http://localhost:5000/api/v1/auth/health
+```
+
+**Expected Response:**
+
+```json
+{
+  "status": "healthy",
+  "feature": "auth",
+  "version": "1.0.0",
+  "endpoints": [
+    "/api/v1/auth/login",
+    "/api/v1/auth/register",
+    "/api/v1/auth/logout",
+    "/api/v1/auth/verify"
+  ]
+}
+```
+
+<Check>
+  If you see this response, your installation is successful!
+</Check>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart Guide" icon="rocket" href="/quickstart">
+    Make your first API calls and start building
+  </Card>
+  <Card title="Configuration" icon="gear" href="/configuration/environment">
+    Learn about advanced configuration options
+  </Card>
+  <Card title="Development" icon="code" href="/development/setup">
+    Set up your development environment
+  </Card>
+  <Card title="Architecture" icon="cloud" href="/architecture/overview">
+    Understand the system architecture
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Python version issues" icon="python">
+    If you get a Python version error:
+    
+    ```bash
+    # Check your Python version
+    python3 --version
+    
+    # Use a specific Python version
+    python3.10 -m venv venv
+    
+    # Or install Python 3.10+ from python.org
+    ```
+  </Accordion>
+  
+  <Accordion title="PostgreSQL connection failed" icon="database">
+    Common PostgreSQL connection issues:
+    
+    1. **PostgreSQL not running:**
+       ```bash
+       # Check status
+       sudo systemctl status postgresql  # Linux
+       brew services list                # macOS
+       
+       # Start service
+       sudo systemctl start postgresql   # Linux
+       brew services start postgresql    # macOS
+       ```
+    
+    2. **Wrong credentials:**
+       - Verify username and password in `.env`
+       - Test connection: `psql -U postgres -h localhost`
+    
+    3. **Database doesn't exist:**
+       ```bash
+       psql -U postgres
+       CREATE DATABASE softbee_local;
+       ```
+  </Accordion>
+  
+  <Accordion title="pip install fails" icon="box">
+    If dependency installation fails:
+    
+    ```bash
+    # Upgrade pip first
+    pip install --upgrade pip setuptools wheel
+    
+    # Install with verbose output
+    pip install -r requirements/base.txt -v
+    
+    # For psycopg2 issues on Mac:
+    brew install postgresql
+    pip install psycopg2-binary
+    
+    # For psycopg2 issues on Linux:
+    sudo apt-get install libpq-dev python3-dev
+    pip install psycopg2-binary
+    ```
+  </Accordion>
+  
+  <Accordion title="Migration errors" icon="database">
+    If migrations fail:
+    
+    ```bash
+    # Remove migrations directory
+    rm -rf migrations/
+    
+    # Reinitialize
+    flask db init
+    flask db migrate -m "Initial migration"
+    flask db upgrade
+    
+    # If still failing, check:
+    # 1. Database exists and is accessible
+    # 2. DATABASE_URL in .env is correct
+    # 3. Models are imported in db.py
+    ```
+  </Accordion>
+  
+  <Accordion title="Virtual environment activation" icon="terminal">
+    Platform-specific activation:
+    
+    **Linux/Mac (bash/zsh):**
+    ```bash
+    source venv/bin/activate
+    ```
+    
+    **Linux/Mac (fish):**
+    ```bash
+    source venv/bin/activate.fish
+    ```
+    
+    **Windows (CMD):**
+    ```bash
+    venv\Scripts\activate.bat
+    ```
+    
+    **Windows (PowerShell):**
+    ```bash
+    venv\Scripts\Activate.ps1
+    ```
+    
+    If PowerShell blocks scripts:
+    ```powershell
+    Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+    ```
+  </Accordion>
+  
+  <Accordion title="Import errors" icon="code">
+    If you see module import errors:
+    
+    ```bash
+    # Ensure virtual environment is activated
+    which python  # Should point to venv/bin/python
+    
+    # Reinstall dependencies
+    pip install -r requirements/base.txt
+    
+    # Check if package is installed
+    pip list | grep flask
+    
+    # Set PYTHONPATH if needed
+    export PYTHONPATH="${PYTHONPATH}:$(pwd)"
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Getting Help
+
+If you're still experiencing issues:
+
+<CardGroup cols={2}>
+  <Card title="GitHub Issues" icon="github">
+    Report bugs and request features on our GitHub repository
+  </Card>
+  <Card title="Documentation" icon="book">
+    Browse the full documentation for detailed guides
+  </Card>
+</CardGroup>

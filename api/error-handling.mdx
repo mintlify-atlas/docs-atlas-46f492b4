@@ -1,0 +1,374 @@
+---
+title: 'Error Handling'
+description: 'Understanding error responses and codes in the Soft-Bee API'
+---
+
+## Overview
+
+The Soft-Bee API uses conventional HTTP response codes to indicate the success or failure of API requests. Error responses include detailed information to help you diagnose and resolve issues.
+
+## Error Response Format
+
+All error responses follow a consistent JSON structure:
+
+```json
+{
+  "error": "Error message describing what went wrong"
+}
+```
+
+For validation errors, the response may include additional details:
+
+```json
+{
+  "error": "Must contain uppercase letter"
+}
+```
+
+## HTTP Status Codes
+
+The API uses standard HTTP status codes to indicate the outcome of requests:
+
+### Success Codes (2xx)
+
+| Status Code | Meaning | Description |
+|-------------|---------|-------------|
+| 200 | OK | Request succeeded |
+| 201 | Created | Resource created successfully |
+| 204 | No Content | Request succeeded with no response body |
+
+### Client Error Codes (4xx)
+
+| Status Code | Meaning | Description |
+|-------------|---------|-------------|
+| 400 | Bad Request | Invalid request parameters or validation error |
+| 401 | Unauthorized | Authentication failed or token invalid/expired |
+| 403 | Forbidden | Authenticated but lacks permission |
+| 404 | Not Found | Requested resource doesn't exist |
+| 422 | Unprocessable Entity | Request understood but cannot be processed |
+| 429 | Too Many Requests | Rate limit exceeded |
+
+### Server Error Codes (5xx)
+
+| Status Code | Meaning | Description |
+|-------------|---------|-------------|
+| 500 | Internal Server Error | Unexpected server error |
+| 502 | Bad Gateway | Invalid response from upstream server |
+| 503 | Service Unavailable | Service temporarily unavailable |
+
+## Authentication Error Codes
+
+The authentication module uses specific error codes to identify different failure scenarios:
+
+### AUTH_ERROR
+
+Base authentication error code.
+
+**HTTP Status**: 401 Unauthorized
+
+```json
+{
+  "error": "Authentication error occurred"
+}
+```
+
+### INVALID_EMAIL
+
+Email address format is invalid.
+
+**HTTP Status**: 400 Bad Request
+
+```json
+{
+  "error": "Invalid email address"
+}
+```
+
+**Common Causes**:
+- Email doesn't match standard email format
+- Missing @ symbol or domain
+- Invalid characters in email
+
+### WEAK_PASSWORD
+
+Password doesn't meet security requirements.
+
+**HTTP Status**: 400 Bad Request
+
+```json
+{
+  "error": "Password is too weak"
+}
+```
+
+**Password Requirements**:
+- Minimum 8 characters
+- At least one uppercase letter
+- At least one lowercase letter
+- At least one number
+- At least one special character
+
+### INVALID_USER
+
+User data is invalid or malformed.
+
+**HTTP Status**: 400 Bad Request
+
+```json
+{
+  "error": "Invalid user data"
+}
+```
+
+### USER_NOT_FOUND
+
+No user exists with the provided identifier.
+
+**HTTP Status**: 401 Unauthorized
+
+```json
+{
+  "error": "Invalid email or password"
+}
+```
+
+<Note>
+  For security reasons, this error is masked as "Invalid email or password" to prevent user enumeration attacks.
+</Note>
+
+### INVALID_CREDENTIALS
+
+Email or password is incorrect.
+
+**HTTP Status**: 401 Unauthorized
+
+```json
+{
+  "error": "Invalid email or password"
+}
+```
+
+**Important**: Failed login attempts are tracked. Multiple failures may result in account lockout.
+
+### ACCOUNT_LOCKED
+
+Account is locked due to multiple failed login attempts.
+
+**HTTP Status**: 401 Unauthorized
+
+```json
+{
+  "error": "Account is locked due to multiple failed attempts"
+}
+```
+
+**Resolution**: Contact system administrator to unlock the account.
+
+### TOKEN_EXPIRED
+
+JWT token has expired and is no longer valid.
+
+**HTTP Status**: 401 Unauthorized
+
+```json
+{
+  "error": "Token has expired"
+}
+```
+
+**Resolution**: Use your refresh token to obtain a new access token, or login again.
+
+### INVALID_TOKEN
+
+JWT token is malformed, tampered with, or invalid.
+
+**HTTP Status**: 401 Unauthorized
+
+```json
+{
+  "error": "Invalid token"
+}
+```
+
+**Common Causes**:
+- Token signature verification failed
+- Token claims are invalid
+- Token has been revoked
+- Token was not issued by this API
+
+### EMAIL_EXISTS
+
+Email address is already registered.
+
+**HTTP Status**: 400 Bad Request
+
+```json
+{
+  "error": "Email already exists"
+}
+```
+
+**Resolution**: Use a different email address or login with existing account.
+
+## Validation Errors
+
+Validation errors occur when request data doesn't meet schema requirements. These are returned with HTTP status 400.
+
+### Username Validation
+
+```json
+{
+  "error": "Username can only contain letters, numbers and underscores"
+}
+```
+
+**Requirements**:
+- 3-50 characters
+- Only alphanumeric and underscores
+- Pattern: `^[a-zA-Z0-9_]+$`
+
+### Password Validation
+
+```json
+{
+  "error": "Must contain uppercase letter"
+}
+```
+
+Other password validation errors:
+- `"Must contain lowercase letter"`
+- `"Must contain number"`
+- `"Must contain special character"`
+
+### Password Confirmation
+
+```json
+{
+  "error": "Passwords do not match"
+}
+```
+
+## Error Handling Examples
+
+### Python
+
+```python
+import requests
+from requests.exceptions import HTTPError
+
+try:
+    response = requests.post(
+        "https://api.soft-bee.com/api/v1/auth/login",
+        json={
+            "email": "user@example.com",
+            "password": "wrong_password"
+        }
+    )
+    response.raise_for_status()
+    data = response.json()
+except HTTPError as e:
+    if e.response.status_code == 401:
+        error_data = e.response.json()
+        print(f"Authentication failed: {error_data['error']}")
+    elif e.response.status_code == 400:
+        error_data = e.response.json()
+        print(f"Validation error: {error_data['error']}")
+    else:
+        print(f"Request failed: {e}")
+```
+
+### JavaScript/TypeScript
+
+```typescript
+try {
+  const response = await fetch(
+    'https://api.soft-bee.com/api/v1/auth/login',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: 'user@example.com',
+        password: 'wrong_password',
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    
+    if (response.status === 401) {
+      console.error('Authentication failed:', errorData.error);
+    } else if (response.status === 400) {
+      console.error('Validation error:', errorData.error);
+    } else {
+      console.error('Request failed:', errorData.error);
+    }
+    
+    throw new Error(errorData.error);
+  }
+
+  const data = await response.json();
+  // Handle success
+} catch (error) {
+  console.error('Error:', error.message);
+}
+```
+
+### cURL
+
+```bash
+# Capture HTTP status code
+HTTP_STATUS=$(curl -s -o response.json -w "%{http_code}" \
+  -X POST https://api.soft-bee.com/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"wrong_password"}')
+
+if [ $HTTP_STATUS -eq 401 ]; then
+  echo "Authentication failed:"
+  cat response.json
+elif [ $HTTP_STATUS -eq 400 ]; then
+  echo "Validation error:"
+  cat response.json
+else
+  echo "Success"
+  cat response.json
+fi
+```
+
+## Best Practices
+
+### Client-Side Error Handling
+
+1. **Always check HTTP status codes** before processing response data
+2. **Parse error messages** to provide meaningful feedback to users
+3. **Implement retry logic** for 5xx errors with exponential backoff
+4. **Don't retry authentication errors** (4xx) automatically
+5. **Log errors** for debugging but don't expose sensitive details to users
+
+### Security Considerations
+
+<Warning>
+  Never expose detailed error messages from authentication failures to end users. This can be used for user enumeration attacks.
+</Warning>
+
+- Mask authentication errors to prevent user enumeration
+- Don't log sensitive information like passwords or tokens
+- Implement rate limiting to prevent brute force attacks
+- Use generic error messages for production environments
+
+### Debugging Errors
+
+When debugging API errors:
+
+1. Check the HTTP status code
+2. Read the error message in the response body
+3. Verify request parameters match the schema
+4. Ensure authentication tokens are valid and not expired
+5. Check rate limiting headers (see [Rate Limiting](/api/rate-limiting))
+
+## Related Documentation
+
+- [Authentication](/api/authentication) - Learn about authentication and token management
+- [Rate Limiting](/api/rate-limiting) - Understand API rate limits

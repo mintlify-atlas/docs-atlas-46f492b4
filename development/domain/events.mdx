@@ -1,0 +1,505 @@
+---
+title: Domain Events
+description: Understanding and creating domain events in Soft-Bee API
+---
+
+## Overview
+
+Domain Events are immutable objects that represent something significant that happened in the domain. They are used to communicate state changes between different parts of the system in a decoupled way, following event-driven architecture principles.
+
+## Key Characteristics
+
+- **Immutable**: Once created, events cannot be modified
+- **Past Tense**: Named with past-tense verbs (e.g., `UserRegisteredEvent`)
+- **Rich Information**: Contain all relevant data about what happened
+- **Timestamp**: Always include when the event occurred
+- **Domain Focused**: Represent business-significant occurrences
+- **Decoupling**: Allow loose coupling between components
+
+## Event Structure
+
+Domain events in Soft-Bee API follow this pattern:
+
+```python
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Optional
+
+@dataclass
+class DomainEvent:
+    """Base class for domain events"""
+    event_type: str
+    timestamp: datetime = None
+    
+    def __post_init__(self):
+        if self.timestamp is None:
+            self.timestamp = datetime.utcnow()
+
+@dataclass
+class SpecificEvent(DomainEvent):
+    """Specific domain event"""
+    event_type: str = "entity.action_performed"
+    entity_id: str = None
+    # Additional event-specific fields
+```
+
+## Real Example: Auth Events
+
+The auth feature demonstrates various domain events:
+
+```python
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Optional
+
+@dataclass
+class AuthEvent:
+    """Evento base de autenticación"""
+    event_type: str
+    timestamp: datetime = None
+    
+    def __post_init__(self):
+        if self.timestamp is None:
+            self.timestamp = datetime.utcnow()
+
+@dataclass
+class UserRegisteredEvent(AuthEvent):
+    """Evento: Usuario registrado"""
+    event_type: str = "user.registered"
+    user_id: str = None
+    email: str = None
+    username: str = None
+
+@dataclass
+class UserLoggedInEvent(AuthEvent):
+    """Evento: Usuario hizo login"""
+    event_type: str = "user.logged_in"
+    user_id: str = None
+    email: str = None
+
+@dataclass
+class UserLoggedOutEvent(AuthEvent):
+    """Evento: Usuario hizo logout"""
+    event_type: str = "user.logged_out"
+    user_id: str = None
+
+@dataclass
+class PasswordChangedEvent(AuthEvent):
+    """Evento: Password cambiado"""
+    event_type: str = "user.password_changed"
+    user_id: str = None
+
+@dataclass
+class EmailVerifiedEvent(AuthEvent):
+    """Evento: Email verificado"""
+    event_type: str = "user.email_verified"
+    user_id: str = None
+```
+
+See the full implementation at `src/features/auth/domain/events/auth_events.py`.
+
+## Event Design Principles
+
+### 1. Past Tense Naming
+
+Events represent things that already happened:
+
+```python
+# Good
+class UserRegisteredEvent
+class PasswordChangedEvent
+class HiveCreatedEvent
+
+# Avoid
+class RegisterUserEvent
+class ChangePasswordEvent
+class CreateHiveEvent
+```
+
+### 2. Include Timestamp
+
+Always track when the event occurred:
+
+```python
+@dataclass
+class DomainEvent:
+    timestamp: datetime = None
+    
+    def __post_init__(self):
+        if self.timestamp is None:
+            self.timestamp = datetime.utcnow()
+```
+
+### 3. Event Type
+
+Use a consistent event type format:
+
+```python
+event_type: str = "entity.action_performed"
+# Examples:
+# "user.registered"
+# "user.logged_in"
+# "hive.created"
+# "inspection.completed"
+```
+
+### 4. Rich Event Data
+
+Include all relevant information:
+
+```python
+@dataclass
+class UserRegisteredEvent(AuthEvent):
+    event_type: str = "user.registered"
+    user_id: str = None
+    email: str = None
+    username: str = None  # Everything needed by consumers
+```
+
+### 5. Immutability
+
+Use dataclasses (frozen by default for events):
+
+```python
+@dataclass
+class UserLoggedInEvent(AuthEvent):
+    # Immutable by design
+    user_id: str = None
+    email: str = None
+```
+
+## Raising Events from Entities
+
+Entities raise events when significant state changes occur:
+
+```python
+from dataclasses import dataclass, field
+from typing import List
+from ..events.auth_events import UserLoggedInEvent
+
+@dataclass
+class User:
+    # ... entity fields ...
+    
+    _events: List = field(default_factory=list, init=False, repr=False)
+    
+    def login_successful(self):
+        """Handle successful login"""
+        self.last_login = datetime.utcnow()
+        self.failed_login_attempts = 0
+        self.updated_at = datetime.utcnow()
+        
+        # Raise domain event
+        self._register_event(UserLoggedInEvent(
+            user_id=self.id,
+            email=str(self.email),
+            timestamp=datetime.utcnow()
+        ))
+    
+    def _register_event(self, event):
+        """Register domain event for later publishing"""
+        if not hasattr(self, '_events'):
+            self._events = []
+        self._events.append(event)
+    
+    def pull_events(self):
+        """Get and clear pending events"""
+        events = self._events.copy()
+        self._events.clear()
+        return events
+```
+
+See `src/features/auth/domain/entities/user.py:39` for the implementation.
+
+## Creating New Domain Events
+
+### Step 1: Create Base Event Class
+
+```python
+# src/features/hives/domain/events/hive_events.py
+from dataclasses import dataclass
+from datetime import datetime
+
+@dataclass
+class HiveEvent:
+    """Base event for hive domain"""
+    event_type: str
+    timestamp: datetime = None
+    
+    def __post_init__(self):
+        if self.timestamp is None:
+            self.timestamp = datetime.utcnow()
+```
+
+### Step 2: Define Specific Events
+
+```python
+@dataclass
+class HiveCreatedEvent(HiveEvent):
+    """Event: Hive was created"""
+    event_type: str = "hive.created"
+    hive_id: str = None
+    beekeeper_id: str = None
+    name: str = None
+    location: str = None
+
+@dataclass
+class HiveInspectedEvent(HiveEvent):
+    """Event: Hive inspection completed"""
+    event_type: str = "hive.inspected"
+    hive_id: str = None
+    inspection_id: str = None
+    inspector_id: str = None
+    health_score: float = None
+
+@dataclass
+class HiveLocationChangedEvent(HiveEvent):
+    """Event: Hive location was changed"""
+    event_type: str = "hive.location_changed"
+    hive_id: str = None
+    old_location: str = None
+    new_location: str = None
+    changed_by: str = None
+
+@dataclass
+class HiveDeactivatedEvent(HiveEvent):
+    """Event: Hive was deactivated"""
+    event_type: str = "hive.deactivated"
+    hive_id: str = None
+    reason: str = None
+```
+
+### Step 3: Raise Events from Entities
+
+```python
+# In the Hive entity
+def update_location(self, new_location: str, changed_by: str):
+    """Update hive location"""
+    old_location = self.location
+    self.location = new_location
+    self.updated_at = datetime.utcnow()
+    
+    self._register_event(HiveLocationChangedEvent(
+        hive_id=self.id,
+        old_location=old_location,
+        new_location=new_location,
+        changed_by=changed_by,
+        timestamp=datetime.utcnow()
+    ))
+
+def deactivate(self, reason: str):
+    """Deactivate hive"""
+    self.is_active = False
+    self.updated_at = datetime.utcnow()
+    
+    self._register_event(HiveDeactivatedEvent(
+        hive_id=self.id,
+        reason=reason,
+        timestamp=datetime.utcnow()
+    ))
+```
+
+## Event Publishing Pattern
+
+Events are collected from entities and published after successful operations:
+
+```python
+# In application service or use case
+class CreateHiveUseCase:
+    def execute(self, command: CreateHiveCommand) -> Hive:
+        # Create entity
+        hive = Hive(
+            name=command.name,
+            location=command.location,
+            beekeeper_id=command.beekeeper_id
+        )
+        
+        # Entity raises HiveCreatedEvent internally
+        
+        # Save entity
+        saved_hive = self.hive_repository.save(hive)
+        
+        # Publish events after successful save
+        events = saved_hive.pull_events()
+        for event in events:
+            self.event_publisher.publish(event)
+        
+        return saved_hive
+```
+
+## Event Handlers
+
+Create event handlers to react to domain events:
+
+```python
+# src/features/notifications/application/handlers/user_event_handlers.py
+from ...auth.domain.events.auth_events import UserRegisteredEvent
+
+class UserRegisteredEventHandler:
+    """Handle user registration events"""
+    
+    def __init__(self, email_service, notification_service):
+        self.email_service = email_service
+        self.notification_service = notification_service
+    
+    def handle(self, event: UserRegisteredEvent):
+        """Send welcome email when user registers"""
+        self.email_service.send_welcome_email(
+            email=event.email,
+            username=event.username
+        )
+        
+        self.notification_service.create_notification(
+            user_id=event.user_id,
+            message=f"Welcome {event.username}!",
+            type="welcome"
+        )
+```
+
+## Common Event Patterns
+
+### State Change Events
+
+Track entity state transitions:
+
+```python
+@dataclass
+class HiveStatusChangedEvent(HiveEvent):
+    event_type: str = "hive.status_changed"
+    hive_id: str = None
+    old_status: str = None
+    new_status: str = None
+```
+
+### Lifecycle Events
+
+Track entity creation and deletion:
+
+```python
+@dataclass
+class HiveCreatedEvent(HiveEvent):
+    event_type: str = "hive.created"
+    hive_id: str = None
+
+@dataclass
+class HiveDeletedEvent(HiveEvent):
+    event_type: str = "hive.deleted"
+    hive_id: str = None
+```
+
+### Action Events
+
+Track user or system actions:
+
+```python
+@dataclass
+class InspectionCompletedEvent(HiveEvent):
+    event_type: str = "inspection.completed"
+    inspection_id: str = None
+    hive_id: str = None
+    inspector_id: str = None
+```
+
+### Aggregate Events
+
+Events that affect multiple entities:
+
+```python
+@dataclass
+class ApiaryRelocatedEvent(HiveEvent):
+    event_type: str = "apiary.relocated"
+    apiary_id: str = None
+    affected_hive_ids: list = None
+    old_location: str = None
+    new_location: str = None
+```
+
+## Best Practices
+
+### Name Events Descriptively
+
+```python
+# Good
+class UserPasswordChangedEvent
+class HiveInspectionCompletedEvent
+class QueenBeeReplacedEvent
+
+# Avoid
+class UpdateEvent
+class ChangeEvent
+class ActionEvent
+```
+
+### Include All Relevant Context
+
+```python
+# Good - Rich context
+@dataclass
+class HiveInspectedEvent(HiveEvent):
+    hive_id: str = None
+    inspection_id: str = None
+    inspector_id: str = None
+    health_score: float = None
+    notes: str = None
+
+# Avoid - Minimal context
+@dataclass
+class HiveInspectedEvent(HiveEvent):
+    hive_id: str = None
+```
+
+### Don't Include Behavior in Events
+
+```python
+# Good - Pure data
+@dataclass
+class UserLoggedInEvent(AuthEvent):
+    user_id: str = None
+    email: str = None
+
+# Avoid - Behavior in event
+@dataclass
+class UserLoggedInEvent(AuthEvent):
+    user_id: str = None
+    
+    def send_notification(self):  # NO!
+        pass
+```
+
+### Pull Events After Operations
+
+```python
+# Good
+hive = hive_repository.save(hive)
+events = hive.pull_events()
+for event in events:
+    event_publisher.publish(event)
+
+# Avoid - Publishing before save
+events = hive.pull_events()
+for event in events:
+    event_publisher.publish(event)  # What if save fails?
+hive_repository.save(hive)
+```
+
+## Event Versioning
+
+Plan for event schema evolution:
+
+```python
+@dataclass
+class HiveCreatedEventV2(HiveEvent):
+    """Version 2 with additional fields"""
+    event_type: str = "hive.created"
+    version: int = 2
+    hive_id: str = None
+    # New fields
+    hive_type: str = None
+    initial_population: int = None
+```
+
+## Related Documentation
+
+- [Domain Entities](/development/domain/entities) - Where events are raised
+- [Value Objects](/development/domain/value-objects) - Used in event data
+- [Domain Exceptions](/development/domain/exceptions) - Error handling

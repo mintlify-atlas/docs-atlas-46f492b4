@@ -1,80 +1,362 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: 'Quickstart'
+description: 'Get started with Soft-Bee API in minutes'
+icon: 'rocket'
 ---
 
-## Get started in three steps
+Get your Soft-Bee API up and running in just a few minutes. This guide will walk you through setup, configuration, and making your first API call.
 
-Get your documentation site running locally and make your first customization.
+## Prerequisites
 
-### Step 1: Set up your local environment
-
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
-
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
+Before you begin, ensure you have the following installed:
 
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Python 3.10+" icon="python">
+    Required for running the Flask application
+  </Card>
+  <Card title="PostgreSQL" icon="database">
+    Database for storing beekeeping data
+  </Card>
 </CardGroup>
 
+## Quick Setup
+
+<Steps>
+  <Step title="Clone the Repository">
+    Get the source code from your repository:
+    
+    ```bash
+    git clone <your-repository-url>
+    cd Soft-Bee-Back-End
+    ```
+  </Step>
+
+  <Step title="Run the Initialization Script">
+    Use the provided initialization script to set up your environment:
+    
+    ```bash
+    chmod +x init_project.sh
+    ./init_project.sh
+    ```
+    
+    This script will:
+    - Create a Python virtual environment
+    - Install all base dependencies
+    - Optionally install development dependencies
+    - Set up the project structure
+    
+    <Note>
+      When prompted, type `s` or `y` to install development dependencies for a better development experience.
+    </Note>
+  </Step>
+
+  <Step title="Configure Environment Variables">
+    Copy the example environment file and configure your settings:
+    
+    ```bash
+    cp .env.example .env
+    ```
+    
+    Update the `.env` file with your configuration:
+    
+    ```bash .env
+    # Environment
+    FLASK_ENV=local
+    
+    # Security Keys
+    SECRET_KEY=your-secret-key-here
+    JWT_KEY=your-jwt-secret-key-here
+    
+    # Database
+    DATABASE_URL=postgresql://postgres:password@localhost:5432/softbee_local
+    
+    # Email (Optional for testing)
+    SMTP_HOST=smtp.gmail.com
+    SMTP_PORT=587
+    SMTP_USER=your-email@gmail.com
+    SMTP_PASSWORD=your-email-password
+    ```
+    
+    <Warning>
+      Change the `SECRET_KEY` and `JWT_KEY` values before deploying to production!
+    </Warning>
+  </Step>
+
+  <Step title="Initialize the Database">
+    Create the database and run migrations:
+    
+    ```bash
+    # Activate virtual environment (if not already active)
+    source venv/bin/activate  # On Windows: venv\Scripts\activate
+    
+    # Initialize migrations
+    flask db init
+    flask db migrate -m "Initial migration"
+    flask db upgrade
+    ```
+    
+    <Note>
+      Make sure PostgreSQL is running and the database specified in `DATABASE_URL` exists.
+    </Note>
+  </Step>
+
+  <Step title="Start the Development Server">
+    Run the Flask application:
+    
+    ```bash
+    flask run
+    # Or use python directly
+    python index.py
+    ```
+    
+    You should see output like:
+    
+    ```
+    🚀 Iniciando aplicación en entorno: local
+    ⚙️  Configuración activa: LocalConfig
+    📂 Usando base de datos: PostgreSQL
+    🌐 URLs configuradas:
+       Frontend: http://localhost:3000
+       Backend: http://localhost:5000
+    🐛 Debug mode: True
+     * Running on http://127.0.0.1:5000
+    ```
+  </Step>
+</Steps>
+
+## Make Your First API Call
+
+Now that your server is running, let's test it with a real API call.
+
+### Register a New User
+
+Create a new user account using the registration endpoint:
+
+<CodeGroup>
+```bash cURL
+curl -X POST http://localhost:5000/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "beekeeper@example.com",
+    "username": "beekeeper123",
+    "password": "SecurePass123!",
+    "confirm_password": "SecurePass123!"
+  }'
+```
+
+```python Python
+import requests
+
+url = "http://localhost:5000/api/v1/auth/register"
+payload = {
+    "email": "beekeeper@example.com",
+    "username": "beekeeper123",
+    "password": "SecurePass123!",
+    "confirm_password": "SecurePass123!"
+}
+
+response = requests.post(url, json=payload)
+print(response.json())
+```
+
+```javascript JavaScript
+fetch('http://localhost:5000/api/v1/auth/register', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    email: 'beekeeper@example.com',
+    username: 'beekeeper123',
+    password: 'SecurePass123!',
+    confirm_password: 'SecurePass123!'
+  })
+})
+.then(response => response.json())
+.then(data => console.log(data));
+```
+</CodeGroup>
+
+**Expected Response (201 Created):**
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "email": "beekeeper@example.com",
+  "username": "beekeeper123",
+  "is_verified": false,
+  "created_at": "2026-03-06T10:30:00",
+  "message": "User registered successfully"
+}
+```
+
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  Password must contain at least 8 characters with:
+  - One uppercase letter
+  - One lowercase letter
+  - One number
+  - One special character
 </Note>
+
+### Login to Get Access Token
+
+Authenticate and receive JWT tokens:
+
+<CodeGroup>
+```bash cURL
+curl -X POST http://localhost:5000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "beekeeper@example.com",
+    "password": "SecurePass123!",
+    "remember_me": false
+  }'
+```
+
+```python Python
+import requests
+
+url = "http://localhost:5000/api/v1/auth/login"
+payload = {
+    "email": "beekeeper@example.com",
+    "password": "SecurePass123!",
+    "remember_me": False
+}
+
+response = requests.post(url, json=payload)
+tokens = response.json()
+print(f"Access Token: {tokens['access_token']}")
+```
+
+```javascript JavaScript
+fetch('http://localhost:5000/api/v1/auth/login', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    email: 'beekeeper@example.com',
+    password: 'SecurePass123!',
+    remember_me: false
+  })
+})
+.then(response => response.json())
+.then(data => {
+  console.log('Access Token:', data.access_token);
+});
+```
+</CodeGroup>
+
+**Expected Response (200 OK):**
+
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "bearer",
+  "expires_in": 1440,
+  "user": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "email": "beekeeper@example.com",
+    "username": "beekeeper123",
+    "is_active": true,
+    "is_verified": false,
+    "created_at": "2026-03-06T10:30:00",
+    "updated_at": "2026-03-06T10:30:00"
+  }
+}
+```
+
+### Verify API Health
+
+Check that the authentication feature is running correctly:
+
+```bash
+curl http://localhost:5000/api/v1/auth/health
+```
+
+**Response:**
+
+```json
+{
+  "status": "healthy",
+  "feature": "auth",
+  "version": "1.0.0",
+  "endpoints": [
+    "/api/v1/auth/login",
+    "/api/v1/auth/register",
+    "/api/v1/auth/logout",
+    "/api/v1/auth/verify"
+  ]
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API Reference" icon="book" href="/api/auth/overview">
+    Explore all available endpoints and their parameters
+  </Card>
+  <Card title="Architecture" icon="sitemap" href="/architecture/overview">
+    Learn about the Clean Architecture and DDD patterns used
+  </Card>
+  <Card title="Authentication" icon="lock" href="/api/authentication">
+    Deep dive into JWT authentication and security
+  </Card>
+  <Card title="Error Handling" icon="triangle-exclamation" href="/api/error-handling">
+    Understand error codes and how to handle them
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Database connection errors">
+    Make sure PostgreSQL is running and the `DATABASE_URL` in your `.env` file is correct.
+    
+    Test your database connection:
+    ```bash
+    psql -U postgres -h localhost -d softbee_local
+    ```
+  </Accordion>
+  
+  <Accordion title="Virtual environment issues">
+    If you're having trouble with the virtual environment:
+    
+    **Linux/Mac:**
+    ```bash
+    python3 -m venv venv
+    source venv/bin/activate
+    ```
+    
+    **Windows:**
+    ```bash
+    python -m venv venv
+    venv\Scripts\activate
+    ```
+  </Accordion>
+  
+  <Accordion title="Migration errors">
+    If you encounter migration errors, try:
+    
+    ```bash
+    # Remove existing migrations
+    rm -rf migrations/
+    
+    # Reinitialize
+    flask db init
+    flask db migrate -m "Initial migration"
+    flask db upgrade
+    ```
+  </Accordion>
+  
+  <Accordion title="Port already in use">
+    If port 5000 is already in use, specify a different port:
+    
+    ```bash
+    flask run --port 5001
+    ```
+    
+    Or update `FLASK_RUN_PORT` in your `.flaskenv` file.
+  </Accordion>
+</AccordionGroup>

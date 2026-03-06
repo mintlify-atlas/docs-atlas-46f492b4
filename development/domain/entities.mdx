@@ -1,0 +1,341 @@
+---
+title: Domain Entities
+description: Understanding and creating domain entities in Soft-Bee API
+---
+
+## Overview
+
+Entities are domain objects that have a unique identity that persists over time. Unlike value objects, entities are defined by their identity rather than their attributes. In DDD, entities encapsulate business logic and maintain consistency of business rules.
+
+## Key Characteristics
+
+- **Unique Identity**: Each entity has a unique identifier (usually `id`)
+- **Mutable**: Entity attributes can change over time
+- **Business Logic**: Contains domain-specific behavior and validation
+- **Event Publishing**: Can raise domain events for significant state changes
+- **Lifecycle**: Tracks creation and modification times
+
+## Entity Structure
+
+Entities in Soft-Bee API follow this pattern:
+
+```python
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Optional, List
+
+@dataclass
+class EntityName:
+    """Entity description"""
+    
+    # Required attributes
+    attribute1: ValueObject
+    attribute2: str
+    
+    # Optional identity
+    id: Optional[str] = None
+    
+    # Timestamps
+    created_at: datetime = field(default_factory=datetime.utcnow)
+    updated_at: datetime = field(default_factory=datetime.utcnow)
+    
+    # Domain events
+    _events: List = field(default_factory=list, init=False, repr=False)
+    
+    def __post_init__(self):
+        self.validate()
+    
+    def validate(self):
+        """Validate business rules"""
+        pass
+    
+    def _register_event(self, event):
+        """Register domain event"""
+        if not hasattr(self, '_events'):
+            self._events = []
+        self._events.append(event)
+    
+    def pull_events(self):
+        """Get and clear pending events"""
+        events = self._events.copy()
+        self._events.clear()
+        return events
+```
+
+## Real Example: User Entity
+
+The User entity from the auth feature demonstrates these principles:
+
+```python
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Optional, List
+from ...domain.value_objects.email import Email
+from ...domain.value_objects.password import Password
+from ...domain.events.auth_events import UserRegisteredEvent, UserLoggedInEvent
+from ...domain.exceptions.auth_exceptions import InvalidUserException
+
+@dataclass
+class User:
+    """Entidad User para autenticación"""
+    
+    email: Email
+    username: str
+    hashed_password: str
+    id: Optional[str] = None
+    is_active: bool = True
+    is_verified: bool = False
+    last_login: Optional[datetime] = None
+    refresh_tokens: List[str] = field(default_factory=list)
+    failed_login_attempts: int = 0
+    created_at: datetime = field(default_factory=datetime.utcnow)
+    updated_at: datetime = field(default_factory=datetime.utcnow)
+    
+    # Eventos pendientes de publicación
+    _events: List = field(default_factory=list, init=False, repr=False)
+    
+    def __post_init__(self):
+        self.validate()
+    
+    def validate(self):
+        """Validar reglas de negocio"""
+        if len(self.username) < 3:
+            raise InvalidUserException("Username must be at least 3 characters")
+        
+        if not self.email.is_valid():
+            raise InvalidUserException("Invalid email address")
+    
+    def login_successful(self):
+        """Manejar login exitoso"""
+        self.last_login = datetime.utcnow()
+        self.failed_login_attempts = 0
+        self.updated_at = datetime.utcnow()
+        
+        # Registrar evento
+        self._register_event(UserLoggedInEvent(
+            user_id=self.id,
+            email=str(self.email),
+            timestamp=datetime.utcnow()
+        ))
+    
+    def login_failed(self):
+        """Manejar intento de login fallido"""
+        self.failed_login_attempts += 1
+        self.updated_at = datetime.utcnow()
+    
+    def is_locked(self) -> bool:
+        """Verificar si la cuenta está bloqueada por intentos fallidos"""
+        return self.failed_login_attempts >= 5
+```
+
+See the full implementation at `src/features/auth/domain/entities/user.py`.
+
+## Entity Design Principles
+
+### 1. Identity
+
+Every entity must have a unique identifier:
+
+```python
+id: Optional[str] = None  # Set by repository after persistence
+```
+
+### 2. Validation
+
+Validate business rules in `__post_init__` and dedicated methods:
+
+```python
+def __post_init__(self):
+    self.validate()
+
+def validate(self):
+    if len(self.username) < 3:
+        raise InvalidUserException("Username must be at least 3 characters")
+```
+
+### 3. Behavior
+
+Encapsulate business logic in methods:
+
+```python
+def login_successful(self):
+    """Handle successful login with all side effects"""
+    self.last_login = datetime.utcnow()
+    self.failed_login_attempts = 0
+    self.updated_at = datetime.utcnow()
+    self._register_event(UserLoggedInEvent(...))
+```
+
+### 4. Domain Events
+
+Raise events for significant state changes:
+
+```python
+def _register_event(self, event):
+    """Register domain event for later publishing"""
+    if not hasattr(self, '_events'):
+        self._events = []
+    self._events.append(event)
+
+def pull_events(self):
+    """Get and clear pending events"""
+    events = self._events.copy()
+    self._events.clear()
+    return events
+```
+
+## Creating a New Entity
+
+### Step 1: Define the Entity Class
+
+```python
+# src/features/hives/domain/entities/hive.py
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Optional, List
+from ..exceptions.hive_exceptions import InvalidHiveException
+
+@dataclass
+class Hive:
+    """Hive entity representing a beehive"""
+    
+    name: str
+    location: str
+    beekeeper_id: str
+    id: Optional[str] = None
+    is_active: bool = True
+    created_at: datetime = field(default_factory=datetime.utcnow)
+    updated_at: datetime = field(default_factory=datetime.utcnow)
+    
+    _events: List = field(default_factory=list, init=False, repr=False)
+    
+    def __post_init__(self):
+        self.validate()
+    
+    def validate(self):
+        if not self.name or len(self.name) < 2:
+            raise InvalidHiveException("Hive name must be at least 2 characters")
+        if not self.beekeeper_id:
+            raise InvalidHiveException("Hive must belong to a beekeeper")
+```
+
+### Step 2: Add Business Logic
+
+```python
+def deactivate(self):
+    """Deactivate hive"""
+    self.is_active = False
+    self.updated_at = datetime.utcnow()
+    self._register_event(HiveDeactivatedEvent(
+        hive_id=self.id,
+        timestamp=datetime.utcnow()
+    ))
+
+def update_location(self, new_location: str):
+    """Update hive location"""
+    if not new_location:
+        raise InvalidHiveException("Location cannot be empty")
+    
+    old_location = self.location
+    self.location = new_location
+    self.updated_at = datetime.utcnow()
+    
+    self._register_event(HiveLocationChangedEvent(
+        hive_id=self.id,
+        old_location=old_location,
+        new_location=new_location,
+        timestamp=datetime.utcnow()
+    ))
+```
+
+### Step 3: Implement Event Management
+
+```python
+def _register_event(self, event):
+    if not hasattr(self, '_events'):
+        self._events = []
+    self._events.append(event)
+
+def pull_events(self):
+    events = self._events.copy()
+    self._events.clear()
+    return events
+```
+
+## Best Practices
+
+### Use Value Objects for Complex Attributes
+
+```python
+# Good
+email: Email  # Value object with validation
+
+# Avoid
+email: str  # Plain string without validation
+```
+
+### Keep Business Logic in Entities
+
+```python
+# Good - Logic in entity
+def login_successful(self):
+    self.last_login = datetime.utcnow()
+    self.failed_login_attempts = 0
+    self._register_event(UserLoggedInEvent(...))
+
+# Avoid - Logic in service
+def login_user(user):
+    user.last_login = datetime.utcnow()
+    user.failed_login_attempts = 0
+```
+
+### Always Update Timestamps
+
+```python
+def update_attribute(self, value):
+    self.attribute = value
+    self.updated_at = datetime.utcnow()  # Always update
+```
+
+### Validate on Construction
+
+```python
+def __post_init__(self):
+    self.validate()  # Ensures entity is always valid
+```
+
+## Common Patterns
+
+### Soft Delete
+
+```python
+def deactivate(self):
+    """Soft delete by deactivating"""
+    self.is_active = False
+    self.updated_at = datetime.utcnow()
+```
+
+### Status Transitions
+
+```python
+def activate(self):
+    if not self.is_verified:
+        raise InvalidUserException("Cannot activate unverified user")
+    self.is_active = True
+    self.updated_at = datetime.utcnow()
+```
+
+### Collection Management
+
+```python
+def add_refresh_token(self, token: str):
+    if token not in self.refresh_tokens:
+        self.refresh_tokens.append(token)
+        self.updated_at = datetime.utcnow()
+```
+
+## Related Documentation
+
+- [Value Objects](/development/domain/value-objects) - Immutable domain objects
+- [Domain Events](/development/domain/events) - Event-driven architecture
+- [Domain Exceptions](/development/domain/exceptions) - Error handling

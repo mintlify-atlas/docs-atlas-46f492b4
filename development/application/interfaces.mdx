@@ -1,0 +1,423 @@
+---
+title: Interfaces (Ports)
+description: Dependency inversion through repository and service interfaces
+---
+
+# Interfaces (Ports)
+
+Interfaces define contracts between the application layer and external dependencies. They enable the Dependency Inversion Principle, allowing business logic to remain independent of infrastructure implementations.
+
+## Purpose
+
+Interfaces in Soft-Bee API:
+- Define contracts for repositories and services
+- Enable dependency inversion (depend on abstractions, not concretions)
+- Allow swapping implementations without changing business logic
+- Facilitate testing with mock implementations
+- Separate concerns between layers
+
+## Interface Types
+
+Soft-Bee uses two main types of interfaces:
+
+1. **Repository Interfaces** - Data access contracts
+2. **Service Interfaces** - Infrastructure service contracts
+
+## Repository Interfaces
+
+### User Repository Interface
+
+The `IUserRepository` defines all data access operations for users:
+
+```python
+from abc import ABC, abstractmethod
+from typing import Optional, List
+from ....domain.entities.user import User
+
+class IUserRepository(ABC):
+    """Interface/Port para repositorio de usuarios"""
+    
+    @abstractmethod
+    def save(self, user: User) -> User:
+        """Guardar usuario"""
+        pass
+    
+    @abstractmethod
+    def find_by_id(self, user_id: str) -> Optional[User]:
+        """Buscar usuario por ID"""
+        pass
+    
+    @abstractmethod
+    def find_by_email(self, email: str) -> Optional[User]:
+        """Buscar usuario por email"""
+        pass
+    
+    @abstractmethod
+    def find_by_username(self, username: str) -> Optional[User]:
+        """Buscar usuario por username"""
+        pass
+    
+    @abstractmethod
+    def exists_by_email(self, email: str) -> bool:
+        """Verificar si existe usuario con email"""
+        pass
+    
+    @abstractmethod
+    def exists_by_username(self, username: str) -> bool:
+        """Verificar si existe usuario con username"""
+        pass
+    
+    @abstractmethod
+    def delete(self, user_id: str) -> bool:
+        """Eliminar usuario"""
+        pass
+    
+    @abstractmethod
+    def update_last_login(self, user_id: str) -> None:
+        """Actualizar último login"""
+        pass
+    
+    @abstractmethod
+    def add_refresh_token(self, user_id: str, token: str) -> None:
+        """Agregar token de refresh"""
+        pass
+    
+    @abstractmethod
+    def remove_refresh_token(self, user_id: str, token: str) -> bool:
+        """Remover token de refresh"""
+        pass
+    
+    @abstractmethod
+    def has_refresh_token(self, user_id: str, token: str) -> bool:
+        """Verificar si usuario tiene token de refresh"""
+        pass
+```
+
+**Location:** `src/features/auth/application/interfaces/repositories/user_repository.py:5`
+
+### Repository Operations
+
+#### CRUD Operations
+- `save(user: User)` - Create or update user
+- `find_by_id(user_id: str)` - Retrieve by ID
+- `delete(user_id: str)` - Remove user
+
+#### Query Operations
+- `find_by_email(email: str)` - Find by email address
+- `find_by_username(username: str)` - Find by username
+- `exists_by_email(email: str)` - Check email existence
+- `exists_by_username(username: str)` - Check username existence
+
+#### Token Management
+- `add_refresh_token(user_id, token)` - Store refresh token
+- `remove_refresh_token(user_id, token)` - Invalidate refresh token
+- `has_refresh_token(user_id, token)` - Verify token validity
+
+#### Session Management
+- `update_last_login(user_id)` - Update login timestamp
+
+## Service Interfaces
+
+### Token Service Interface
+
+The `ITokenService` defines JWT token operations:
+
+```python
+from abc import ABC, abstractmethod
+from typing import Dict, Any, Optional
+from datetime import datetime
+
+class ITokenService(ABC):
+    """Interface/Port para servicio de tokens"""
+    
+    @abstractmethod
+    def create_access_token(self, data: Dict[str, Any], expires_in: int = 900) -> str:
+        """Crear access token JWT"""
+        pass
+    
+    @abstractmethod
+    def create_refresh_token(self, data: Dict[str, Any], expires_in: int = 2592000) -> str:
+        """Crear refresh token JWT"""
+        pass
+    
+    @abstractmethod
+    def verify_token(self, token: str) -> Optional[Dict[str, Any]]:
+        """Verificar y decodificar token"""
+        pass
+    
+    @abstractmethod
+    def decode_token(self, token: str) -> Optional[Dict[str, Any]]:
+        """Decodificar token sin verificar"""
+        pass
+    
+    @abstractmethod
+    def is_token_expired(self, token: str) -> bool:
+        """Verificar si token está expirado"""
+        pass
+    
+    @abstractmethod
+    def get_token_expiry(self, token: str) -> Optional[datetime]:
+        """Obtener fecha de expiración del token"""
+        pass
+```
+
+**Location:** `src/features/auth/application/interfaces/services/token_service.py:5`
+
+### Token Operations
+
+#### Token Creation
+- `create_access_token(data, expires_in)` - Generate short-lived access token (default 15 minutes)
+- `create_refresh_token(data, expires_in)` - Generate long-lived refresh token (default 30 days)
+
+#### Token Validation
+- `verify_token(token)` - Validate signature and expiration, return payload
+- `decode_token(token)` - Decode without validation
+- `is_token_expired(token)` - Check expiration status
+- `get_token_expiry(token)` - Get expiration timestamp
+
+## Dependency Inversion in Action
+
+### Use Case Dependency Injection
+
+Use cases depend on interfaces, not implementations:
+
+```python
+class LoginUserUseCase:
+    def __init__(
+        self,
+        user_repository: IUserRepository,  # Interface, not SQLAlchemyUserRepository
+        token_service: ITokenService,       # Interface, not JWTTokenService
+        password_hasher: Any
+    ):
+        self.user_repository = user_repository
+        self.token_service = token_service
+        self.password_hasher = password_hasher
+```
+
+**Key Points:**
+- Constructor accepts **interfaces** (`IUserRepository`, `ITokenService`)
+- Use case doesn't know about SQLAlchemy, JWT libraries, or Flask
+- Can be tested with mock implementations
+- Infrastructure can be swapped without changing use case code
+
+### Infrastructure Implementation
+
+Concrete implementations live in the infrastructure layer:
+
+```python
+# infrastructure/persistence/sqlalchemy/user_repository.py
+class SQLAlchemyUserRepository(IUserRepository):
+    def __init__(self, session: Session):
+        self.session = session
+    
+    def save(self, user: User) -> User:
+        # SQLAlchemy specific implementation
+        user_model = UserModel.from_entity(user)
+        self.session.add(user_model)
+        self.session.commit()
+        return user_model.to_entity()
+    
+    def find_by_email(self, email: str) -> Optional[User]:
+        user_model = self.session.query(UserModel).filter_by(email=email).first()
+        return user_model.to_entity() if user_model else None
+    
+    # ... other methods
+```
+
+### Dependency Injection Container
+
+Dependencies are wired together at application startup:
+
+```python
+# infrastructure/di/container.py
+from dependency_injector import containers, providers
+
+class Container(containers.DeclarativeContainer):
+    # Database
+    db_session = providers.Singleton(create_session)
+    
+    # Repositories
+    user_repository = providers.Factory(
+        SQLAlchemyUserRepository,
+        session=db_session
+    )
+    
+    # Services
+    token_service = providers.Factory(
+        JWTTokenService,
+        secret_key=config.SECRET_KEY,
+        algorithm='HS256'
+    )
+    
+    # Use Cases
+    login_use_case = providers.Factory(
+        LoginUserUseCase,
+        user_repository=user_repository,
+        token_service=token_service,
+        password_hasher=bcrypt_hasher
+    )
+```
+
+## Benefits of Interfaces
+
+### 1. Testability
+
+Easy to test with mock implementations:
+
+```python
+import pytest
+from unittest.mock import Mock
+
+def test_login_user_success():
+    # Arrange
+    mock_repository = Mock(spec=IUserRepository)
+    mock_token_service = Mock(spec=ITokenService)
+    mock_hasher = Mock()
+    
+    mock_repository.find_by_email.return_value = mock_user
+    mock_hasher.verify.return_value = True
+    mock_token_service.create_access_token.return_value = "access_token"
+    
+    use_case = LoginUserUseCase(
+        user_repository=mock_repository,
+        token_service=mock_token_service,
+        password_hasher=mock_hasher
+    )
+    
+    # Act
+    response, error = use_case.execute(login_request)
+    
+    # Assert
+    assert error is None
+    assert response.access_token == "access_token"
+```
+
+### 2. Flexibility
+
+Swap implementations without changing business logic:
+
+```python
+# Development: Use SQLite
+user_repository = SQLAlchemyUserRepository(sqlite_session)
+
+# Production: Use PostgreSQL
+user_repository = SQLAlchemyUserRepository(postgres_session)
+
+# Testing: Use in-memory
+user_repository = InMemoryUserRepository()
+
+# All work with the same use case!
+login_use_case = LoginUserUseCase(
+    user_repository=user_repository,
+    token_service=token_service,
+    password_hasher=hasher
+)
+```
+
+### 3. Framework Independence
+
+Business logic doesn't depend on frameworks:
+
+```python
+# Use case code has no imports from:
+# - flask
+# - sqlalchemy
+# - jwt libraries
+# - any other framework
+
+# Only imports domain and application layer code
+from ...domain.entities.user import User
+from ...application.dto.auth_dto import LoginRequestDTO
+from ...application.interfaces.repositories.user_repository import IUserRepository
+```
+
+### 4. Clear Boundaries
+
+Explicit contracts between layers:
+
+```
+Application Layer (Use Cases)
+       ↓ depends on ↓
+Interfaces (Ports)
+       ↑ implemented by ↑
+Infrastructure Layer (Adapters)
+```
+
+## Design Patterns
+
+### Repository Pattern
+
+Encapsulates data access logic:
+- Provides collection-like interface for domain objects
+- Hides database implementation details
+- Enables domain-driven design
+
+### Port-Adapter Pattern (Hexagonal Architecture)
+
+- **Ports** (Interfaces) - Define contracts
+- **Adapters** (Implementations) - Connect to external systems
+- Application core depends only on ports
+- Adapters depend on and implement ports
+
+### Dependency Inversion Principle (SOLID)
+
+> High-level modules should not depend on low-level modules. Both should depend on abstractions.
+
+```python
+# Good: Depend on abstraction
+class LoginUserUseCase:
+    def __init__(self, user_repository: IUserRepository):
+        self.user_repository = user_repository
+
+# Bad: Depend on implementation
+class LoginUserUseCase:
+    def __init__(self, user_repository: SQLAlchemyUserRepository):
+        self.user_repository = user_repository
+```
+
+## Best Practices
+
+1. **Use Abstract Base Classes** - Enforce interface contracts with `ABC` and `@abstractmethod`
+2. **Return Domain Types** - Repository methods return domain entities, not database models
+3. **Keep Interfaces Cohesive** - Group related operations in one interface
+4. **Minimal Dependencies** - Interfaces should only import domain types
+5. **Consistent Naming** - Use `I` prefix for interfaces (e.g., `IUserRepository`)
+6. **Document Behavior** - Include docstrings explaining expected behavior
+7. **Fail Explicitly** - Define what exceptions implementations should raise
+
+## Common Pitfalls
+
+### Leaky Abstractions
+
+```python
+# Bad: Exposes database implementation
+@abstractmethod
+def save(self, user: UserModel) -> UserModel:  # UserModel is SQLAlchemy
+    pass
+
+# Good: Uses domain entity
+@abstractmethod
+def save(self, user: User) -> User:  # User is domain entity
+    pass
+```
+
+### Over-Specification
+
+```python
+# Bad: Too specific to one implementation
+@abstractmethod
+def save_with_transaction(self, user: User, commit: bool = True) -> User:
+    pass
+
+# Good: Implementation handles transactions
+@abstractmethod
+def save(self, user: User) -> User:
+    pass
+```
+
+## See Also
+
+- [Use Cases](/development/application/use-cases) - Business logic that uses interfaces
+- [Domain Entities](/development/domain/entities) - Types returned by repositories
+- [Infrastructure Layer](/development/infrastructure/repositories) - Concrete implementations
+- [Dependency Injection](/architecture/dependency-injection) - Wiring interfaces to implementations
